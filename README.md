@@ -1,14 +1,16 @@
 # OmarchyLight
 
-A Spotlight-inspired Super+Space launcher for Omarchy. A translucent search capsule separates into four category buttons, merges when typing, expands into results, and collapses to a compact “Open” action for an exact application match.
+A Spotlight-inspired Super+Space launcher for Omarchy. A translucent search capsule separates into four category buttons, merges when typing, offers inline application completion, and expands into results when requested.
 
 ![OmarchyLight](docs/preview.png)
 
 [Watch the actual 60 fps desktop capture](docs/demo.mp4) · [Results view](docs/results.png)
 
+Media is captured from the running desktop over a neutral test background.
+
 ## What it does
 
-- Searches installed desktop applications using their original local icons.
+- Searches installed desktop applications using their original local artwork. Icon padding and rounded backgrounds are prepared automatically; existing icon frames are preserved.
 - Opens existing Omarchy actions, nested menus, providers and user menu extensions.
 - Searches local filenames in Desktop, Documents, Downloads, Pictures, Music and Videos.
 - Reads the existing Omarchy clipboard history; it does not add a clipboard recorder.
@@ -23,7 +25,9 @@ A Spotlight-inspired Super+Space launcher for Omarchy. A translucent search caps
 | Type | Search applications and Omarchy actions |
 | Tab | Next category |
 | Ctrl+1 / 2 / 3 / 4 | Applications / files / actions / clipboard |
-| Up / Down | Select a result; Down expands a compact match |
+| Up / Down | Select a result; Down expands a compact match while keeping its inline action |
+| Backspace on a completion | Dismiss completion first; subsequent presses edit the query |
+| Right on a completion | Accept the suggested suffix |
 | Page Up / Page Down | Move six rows |
 | Enter | Run selected result |
 | Escape | Clear query, return to root, then close |
@@ -32,9 +36,9 @@ A Spotlight-inspired Super+Space launcher for Omarchy. A translucent search caps
 
 ## Motion and fidelity
 
-Geometry and transitions were measured from a supplied 60 fps Spotlight recording. The implementation uses a single signed-distance-field glass surface, not overlapping opaque rectangles. Main dimensions are 640×56 logical pixels; the compact search area is 384 pixels and category circles are 56 pixels. Result rows are 56 pixels. The top edge stays fixed while the result body changes height.
+Geometry and transitions were measured from a supplied 60 fps Spotlight recording. The implementation uses a single signed-distance-field glass surface, not overlapping opaque rectangles. Main dimensions are 640×56 logical pixels; the compact search area is 384 pixels and category circles have a 27.5 pixel radius inside 56 pixel hit targets. Result rows are 56 pixels. The top edge stays fixed while the result body changes height.
 
-Opening starts slightly oversized and settles over 320 ms, with a separate 150 ms opacity ramp. Result resizing uses a measured 260 ms Bézier curve; categories separate over 300 ms after an idle delay. These values and shader sources are editable. See [motion notes](docs/MOTION.md).
+Opening, liquid separation, merging and result resizing use independent damped spring models fitted to reference frames. Separation first contracts the capsule, then releases four beads with different delays and overshoot. Typing reverses the visual flow: the beads move inward before the capsule fills its final width. Interrupted gestures preserve position and velocity. The glass uses approximately 71.5% base opacity. See [measurements and verification](docs/MOTION.md).
 
 **This is a measured visual recreation, not Apple's Spotlight implementation.** Font rasterization, compositor blur, display scaling and frame scheduling differ. It does not claim mathematically identical pixels or animation frames. File search is bounded filename search, not a full content index; Siri, Apple Intelligence, cloud search, calculator and native macOS quick actions are not implemented. Omarchy actions remain available through their existing providers.
 
@@ -55,7 +59,7 @@ Extra dependencies: ImageMagick, `gtk-launch`, `uwsm-app`. The compiled shader i
 
 ## Requirements
 
-This targets **Omarchy's Quickshell desktop and Hyprland Lua configuration**, tested with Hyprland 0.56.2, Quickshell 0.3.2 and Qt 6.12. Older Waybar/Walker Omarchy releases are not supported. Python 3 and the normal Omarchy command-line tools must be installed. The UI uses Inter (with the system font fallback if unavailable).
+This targets **Omarchy's Quickshell desktop and Hyprland Lua configuration**, tested with Hyprland 0.56.2, Quickshell 0.3.2 and Qt 6.12. Older Waybar/Walker Omarchy releases are not supported. Python 3 and the normal Omarchy command-line tools must be installed. The UI uses Inter and Inter Display (with the system font fallback if unavailable). ImageMagick prepares installed artwork into the user cache; no replacement brand assets are bundled.
 
 ## Install / update
 
@@ -90,3 +94,5 @@ MIT; see [LICENSE](LICENSE) and [NOTICE](NOTICE). Portions derive from [Omarchy]
 
 - [Omarchy-MacOS-Dock](https://github.com/saitakarcesme/Omarchy-MacOS-Dock)
 - [Omarchy-MacOS-MenuBar](https://github.com/saitakarcesme/Omarchy-MacOS-MenuBar)
+
+Motion regression checks: `node tests/test_motion.js`. Installer round trip: `python3 tests/test_install.py`.

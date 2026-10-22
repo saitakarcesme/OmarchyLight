@@ -7,7 +7,10 @@ layout(std140, binding = 0) uniform buf {
     vec2 surfaceSize;
     float cardWidth;
     float cardHeight;
-    float split;
+    float mainWidth;
+    vec4 centers;
+    vec4 radii;
+    float joinRadius;
     float corner;
 };
 float box(vec2 p, vec2 b, float r) {
@@ -20,22 +23,20 @@ float unite(float a, float b, float k) {
 }
 void main() {
     vec2 p=qt_TexCoord0*surfaceSize-vec2(24.0);
-    float w=mix(cardWidth,cardWidth-256.0,split);
+    float w=mainWidth;
     float d=box(p-vec2(w,cardHeight)*0.5,vec2(w,cardHeight)*0.5,corner);
-    float k=0.1+20.0*sin(split*3.14159265);
     for(int i=0;i<4;i++) {
-        float cx=mix(cardWidth-28.0,cardWidth-220.0+float(i)*64.0,split);
-        float disc=length(p-vec2(cx,28.0))-27.5;
-        d=unite(d,disc,k);
+        float disc=length(p-vec2(centers[i],28.0))-radii[i];
+        if(radii[i]>0.1)d=unite(d,disc,joinRadius);
     }
     float aa=max(fwidth(d),0.65);
     float inside=1.0-smoothstep(-aa*0.5,aa*0.5,d);
-    float edge=(1.0-smoothstep(0.45,1.25,-d))*inside;
+    float edge=(1.0-smoothstep(0.45,1.75,-d))*inside;
     float shadow=exp(-max(d,0.0)/7.0)*0.12*(1.0-inside);
-    vec3 base=vec3(0.085,0.085,0.094);
+    vec3 base=vec3(0.082,0.082,0.090);
     // One continuous translucent material across joined circles and capsule.
-    float a=mix(0.86,0.91,edge)*inside+shadow;
-    vec3 line=mix(vec3(0.24),vec3(0.38),clamp(1.0-p.y/180.0,0.0,1.0));
+    float a=mix(0.715,0.91,edge)*inside+shadow;
+    vec3 line=vec3(0.38);
     vec3 rgb=mix(base,line,edge*0.75);
     fragColor=vec4(rgb*a,a)*qt_Opacity;
 }

@@ -3,6 +3,7 @@ import Quickshell.Io
 import Quickshell.Wayland
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Effects
 import Quickshell.Hyprland
 import "Motion.js" as Motion
 import "ClipboardHistory.js" as ClipboardHistory
@@ -90,15 +91,15 @@ Item {
     if (opened) {
       screenName = Hyprland.focusedMonitor ? Hyprland.focusedMonitor.name : ""
       resizeReady = false
-      presentHeight = desiredHeight
+      resizeAnimation.stop();resizeFrom=desiredHeight;resizeTo=desiredHeight;resizeClock=.6
       Qt.callLater(function(){root.resizeReady=true})
-      presentation = 1
-      opacityProgress = 1
+      closePresentation.stop();openPresentation.from=presentation;openPresentation.start()
+      closeOpacity.stop();openOpacity.from=opacityProgress;openOpacity.start()
       idleCategories.restart()
     } else {
-      if(mode === "menu" && category === "all") lastQuery=filterText
-      presentation = 0
-      opacityProgress = 0
+      if(mode === "menu" && category === "all") {lastQuery=filterText;lastResults=forceResults;lastCompletionSuppressed=completionSuppressed}
+      openPresentation.stop();closePresentation.from=presentation;closePresentation.start()
+      openOpacity.stop();closeOpacity.from=opacityProgress;closeOpacity.start()
       idleCategories.stop()
       deleteConfirmOpen = false; deleteTarget = null
     }
@@ -580,18 +581,25 @@ Item {
     })
   }
 
-  function rebuildDisplay() {
+  property string displaySignature: ""
+  Timer {id:clearResultsDelay;interval:120;onTriggered:root.rebuildDisplay(true)}
+  function rebuildDisplay(afterFade) {
+    // Keep the outgoing rows through their fade. Replacing them with the root
+    // menu immediately makes an unrelated Apps row flash during collapse.
+    if(!afterFade && opened && !resultsShown && presentHeight>56.5) {
+      if(!clearResultsDelay.running)clearResultsDelay.start()
+      return
+    }
+    clearResultsDelay.stop()
     if (!root.dmenuActive && (category === "files" || category === "clipboard")) {
-      rebuildExtras(); return
+      displaySignature="";rebuildExtras(); return
     }
     if (root.dmenuActive) {
-      root.rebuildDmenuDisplay()
+      displaySignature="";root.rebuildDmenuDisplay()
       return
     }
 
-    displayModel.clear()
-
-    if (!root.rowsLoaded) return
+    if (!root.rowsLoaded) {displaySignature="";displayModel.clear();return}
 
     var active = root.item(root.activeMenu) ? root.activeMenu : "root"
     root.activeMenu = active
@@ -656,8 +664,12 @@ Item {
       }
     }
 
-    for (var k = 0; k < rows.length; k++) displayModel.append(rows[k])
-    layoutSerial += 1
+    const signature=JSON.stringify(rows)
+    if(signature!==displaySignature) {
+      displayModel.clear()
+      for (var k = 0; k < rows.length; k++) displayModel.append(rows[k])
+      displaySignature=signature;layoutSerial += 1
+    }
 
     if (displayModel.count === 0) selectedIndex = 0
     else if (selectedIndex >= displayModel.count) selectedIndex = displayModel.count - 1
@@ -692,8 +704,11 @@ Item {
 
   function setFilter(nextFilter) {
     panel.freezeCardTop()
-    forceResults = false; quickReady = false; categoriesReady = false
-    idleCategories.restart(); exactDelay.restart()
+    const fresh=!root.filterText && !!nextFilter
+    if(fresh) { forceResults=false;completionSuppressed=false;quickReady=false;exactDelay.restart() }
+    if(!nextFilter) { forceResults=false;completionSuppressed=false;quickReady=false;exactDelay.stop() }
+    categoriesReady=false; hoveredCategory=-1
+    idleCategories.restart()
     root.filterText = nextFilter
     if(category === "files") fileSearchDelay.restart()
     root.selectedIndex = 0
@@ -810,7 +825,6 @@ Item {
   function applyDmenuSelection(value) {
     applySerial = requestSerial
     opened = false
-    filterText = ""
     root.finishRequest(value)
   }
 
@@ -819,26 +833,25 @@ Item {
 
     applySerial = requestSerial
     opened = false
-    filterText = ""
     root.runAction(action)
   }
 
   function cancel() {
     if (root.dmenuActive) root.finishRequest(null)
     opened = false
-    filterText = ""
   }
 
   function openExistingMenu(initialMenu) {
     const remembered=!opened && initialMenu === "root" ? lastQuery : ""
+    if(!opened) {card.morphAnimationReset()}
     requestSerial += 1
     mode = "menu"
     requestActive = false
     selectionFile = ""
     doneFile = ""
     category = initialMenu === "root" ? "all" : initialMenu === "apps" ? "apps" : "actions"
-    forceResults = initialMenu !== "root"
-    quickReady = false; categoriesReady = false
+    forceResults = initialMenu !== "root" || (!!remembered && lastResults)
+    quickReady = !!remembered; categoriesReady = false; completionSuppressed=!!remembered && lastCompletionSuppressed;hoveredCategory=-1
     activeMenu = root.item(initialMenu) ? initialMenu : "root"
     navStack = []
     filterText = remembered
@@ -846,16 +859,16 @@ Item {
     cursorActive = true
     root.disarmPointer()
     root.evaluateGuards()
+    rebuildDisplay()
     opened = true
     idleCategories.restart()
     exactDelay.restart()
-    rebuildDisplay()
     invalidateVolatileProvider(activeMenu)
     loadProviderForMenu(activeMenu)
     loadProviderForMenu("apps")
     // The shell may start before first-install packages have finished placing
     // their icons. Refresh here even when the desktop entry list did not change.
-    if (root.appLibrary) root.appLibrary.refreshIcons()
+    deferredIcons.restart()
 
     Qt.callLater(function() { keyCatcher.forceActiveFocus(); if(root.filterText)keyCatcher.selectAll() })
   }
@@ -1065,34 +1078,58 @@ Item {
   property string category: "all"
   property bool categoriesReady: false
   property bool quickReady: false
+  property bool completionSuppressed: false
+  property int hoveredCategory: -1
   property bool forceResults: false
   property real presentation: 0
   property real opacityProgress: 0
   property string lastQuery: ""
+  property bool lastResults: false
+  property bool lastCompletionSuppressed: false
   property string screenName: ""
   property real dragX: 0
   property real dragY: 0
   property bool resizeReady: false
-  property real presentHeight: Motion.searchHeight
+  property real resizeFrom: Motion.searchHeight
+  property real resizeTo: Motion.searchHeight
+  property real resizeClock: .6
+  readonly property real presentHeight: Motion.resizedHeight(resizeClock,resizeFrom,resizeTo)
+  function resizeSurface() {
+    if(!opened || Math.abs(resizeTo-desiredHeight)<.01)return
+    const current=presentHeight
+    resizeAnimation.stop();resizeFrom=current;resizeTo=desiredHeight;resizeClock=0
+    if(resizeReady && opened)resizeAnimation.start();else resizeClock=.6
+  }
+  NumberAnimation {id:resizeAnimation;target:root;property:"resizeClock";from:0;to:.6;duration:Motion.resizeDuration;easing.type:Easing.Linear}
   property var extraRows: []
   property var fileRows: []
   property var clipboardHistory: []
   readonly property var topResult: { const rev=layoutSerial; return displayModel.count ? displayModel.get(0) : null }
-  readonly property bool exactApp: !!topResult && topResult.kind === "app" && filterText.trim().length > 1
+  readonly property bool exactApp: !!topResult && topResult.kind === "app" && filterText.trim().length > 0
       && (topResult.label.toLowerCase() === filterText.trim().toLowerCase()
           || topResult.appId.toLowerCase() === filterText.trim().toLowerCase())
-  readonly property bool quick: exactApp && quickReady && !forceResults && !dmenuActive
-  readonly property bool resultsShown: dmenuActive ? mode !== "input" : !quick && (forceResults || category !== "all" || filterText.trim().length > 0)
+  readonly property string completion: {
+    if(!topResult || topResult.kind!=="app" || !filterText || completionSuppressed || dmenuActive)return ""
+    const name=topResult.label, q=filterText.toLowerCase()
+    if(name.toLowerCase().startsWith(q))return name.slice(filterText.length)
+    return ""
+  }
+  readonly property bool inlineApp: !!topResult && topResult.kind==="app" && !!filterText && !completionSuppressed && !dmenuActive
+      && quickReady && (exactApp || completion.length>0)
+  readonly property bool quick: inlineApp && !forceResults
+  readonly property bool resultsShown: dmenuActive ? mode !== "input" : forceResults || category!=="all" || (!!filterText && quickReady && !inlineApp)
   readonly property bool categoriesShown: !dmenuActive && !resultsShown && !filterText && categoriesReady
-  readonly property real lightWidth: Math.min(Motion.width,panel.width-40)
-  readonly property real desiredHeight: resultsShown ? Math.min(panel.height-panel.effectiveCardTop-32,64+Math.min(7,Math.max(1,displayModel.count))*Motion.rowHeight+16) : Motion.searchHeight
-  onDesiredHeightChanged: if(opened) presentHeight=desiredHeight
+  readonly property real lightWidth: Math.min(Motion.width,panel.logicalWidth-40)
+  readonly property real desiredHeight: resultsShown ? Math.min(panel.logicalHeight-panel.effectiveCardTop-32,67+Math.min(7,Math.max(1,displayModel.count))*Motion.rowHeight+13) : Motion.searchHeight
+  onDesiredHeightChanged: if(opened) Qt.callLater(root.resizeSurface)
   onFilterTextChanged: if(keyCatcher.text !== filterText) keyCatcher.text=filterText
-  Behavior on presentation { NumberAnimation { duration: root.opened ? Motion.openDuration : Motion.closeDuration; easing.type: Easing.Linear } }
-  Behavior on opacityProgress { NumberAnimation { duration:root.opened?150:100;easing.type:Easing.Linear } }
-  Behavior on presentHeight { enabled:root.resizeReady && root.opened; NumberAnimation { duration: Motion.resizeDuration; easing.type: Easing.BezierSpline; easing.bezierCurve:[0.22,0,0.18,1,1,1] } }
+  NumberAnimation { id:openPresentation;target:root;property:"presentation";to:1;duration:Motion.openDuration;easing.type:Easing.Linear }
+  NumberAnimation { id:closePresentation;target:root;property:"presentation";to:0;duration:Motion.closeDuration;easing.type:Easing.Linear;onFinished:if(!root.opened)root.filterText="" }
+  NumberAnimation {id:openOpacity;target:root;property:"opacityProgress";to:1;duration:150;easing.type:Easing.OutCubic}
+  NumberAnimation {id:closeOpacity;target:root;property:"opacityProgress";to:0;duration:100;easing.type:Easing.OutCubic}
+  Timer {id:deferredIcons;interval:550;onTriggered:if(root.opened)localLibrary.refreshIcons()}
   Timer { id:idleCategories; interval:Motion.idleDelay; onTriggered:root.categoriesReady=true }
-  Timer { id:exactDelay; interval:420; onTriggered:root.quickReady=true }
+  Timer { id:exactDelay; interval:Motion.suggestionDelay; onTriggered:root.quickReady=true }
   Timer { id:fileSearchDelay; interval:130; onTriggered: {
     if(fileSearch.running) { fileSearch.running=false; fileSearchDelay.restart(); return }
     fileSearch.query=root.filterText
@@ -1116,7 +1153,7 @@ Item {
   }
   function chooseCategory(value) {
     category=value; activeMenu=value==="apps"?"apps":"root"; navStack=[]
-    filterText=""; forceResults=value!=="all"; quickReady=false; selectedIndex=0; cursorActive=true
+    filterText=""; forceResults=value!=="all"; quickReady=false;completionSuppressed=false;hoveredCategory=-1; selectedIndex=0; cursorActive=true
     categoriesReady=value!=="all"
     if(value==="files") { fileRows=[]; fileSearchDelay.restart() }
     if(value==="clipboard") clipboardFile.reload()
@@ -1125,7 +1162,7 @@ Item {
     Qt.callLater(()=>keyCatcher.forceActiveFocus())
   }
   function rebuildExtras() {
-    displayModel.clear()
+    displaySignature="";displayModel.clear()
     extraRows=category==="files"?fileRows:ClipboardHistory.displayRows(clipboardHistory,filterText,80)
     for(let i=0;i<extraRows.length;i++) {
       const e=extraRows[i]
@@ -1137,7 +1174,7 @@ Item {
   }
   function placeholder() {
     if(dmenuActive)return dmenuPrompt
-    if(category==="all")return "OmarchyLight Search"
+    if(category==="all")return hoveredCategory>=0?["Applications","Files","Actions","Clipboard"][hoveredCategory]:"OmarchyLight Search"
     if(category==="files")return "Files"
     if(category==="clipboard")return "Clipboard"
     return activeMenu==="root"?"Actions":(item(activeMenu)?(item(activeMenu).title||item(activeMenu).label):"Search")
@@ -1151,8 +1188,17 @@ Item {
   IpcHandler {
     target:"omarchylight"
     function inspect(): string { return JSON.stringify({opened:root.opened,category:root.category,route:root.activeMenu,query:root.filterText,
-      appLibrary:!!root.appLibrary,apps:root.appLibrary?root.appLibrary.sortedEntries("").length:-1,loaded:root.providersLoaded,appRows:root.itemOrder.filter(id=>id.indexOf("apps.")===0).length,count:displayModel.count,results:root.resultsShown,quick:root.quick,split:card.split,presentation:root.presentation,
+      appLibrary:!!root.appLibrary,apps:root.appLibrary?root.appLibrary.sortedEntries("").length:-1,loaded:root.providersLoaded,appRows:root.itemOrder.filter(id=>id.indexOf("apps.")===0).length,count:displayModel.count,results:root.resultsShown,quick:root.quick,inline:root.inlineApp,completion:root.completion,hover:root.hoveredCategory,geometry:card.geometry,split:card.split,presentation:root.presentation,scale:card.scale,
       bounds:{x:card.x,y:card.y,width:card.width,height:card.height},screen:panel.screen?panel.screen.name:"",shader:glass.status}) }
+    // Deterministic local visual verification: freeze the liquid transition at a timestamp.
+    function sampleMerge(seconds:real):void {
+      root.categoriesReady=true;morphAnimation.stop();card.morphVelocity=null;card.morphFrom=Motion.separatedGeometry(card.width)
+      card.separating=false;card.morphClock=Math.max(0,Math.min(1.1,seconds))
+    }
+    function sampleTransition(seconds:real):void {
+      root.categoriesReady=true;morphAnimation.stop();card.morphVelocity=null;card.morphFrom=Motion.closedGeometry(card.width)
+      card.separating=true;card.morphClock=Math.max(0,Math.min(1.1,seconds))
+    }
     function search(query:string):void { root.setFilter(query) }
     function category(name:string):void { root.chooseCategory(name) }
   }
@@ -1168,30 +1214,49 @@ Item {
     exclusionMode:ExclusionMode.Ignore
     property int cardTop:-1
     property int maxRowsHeight:-1
-    readonly property int effectiveCardTop:Math.max(28,Math.min(height-100,Math.round(height*Motion.topFraction+root.dragY)))
+    readonly property real logicalWidth:screen?screen.width:1920
+    readonly property real logicalHeight:screen?screen.height:1080
+    readonly property int effectiveCardTop:Math.max(28,Math.min(logicalHeight-100,Math.round(logicalHeight*Motion.topFraction+root.dragY)))
     function freezeCardTop() {}
     MouseArea { anchors.fill:parent;onClicked:root.cancel() }
     Item {
       id:card
-      x:Math.max(20,Math.min(panel.width-width-20,Math.round((panel.width-width)/2+root.dragX)))
+      x:Math.max(20,Math.min(panel.logicalWidth-width-20,Math.round((panel.logicalWidth-width)/2+root.dragX)))
       y:panel.effectiveCardTop
       width:root.lightWidth;height:root.presentHeight
       opacity:root.opacityProgress
-      scale:root.opened ? (root.presentation>=1?1:1+0.08*Math.exp(-5*root.presentation)*Math.cos(4*root.presentation)) : 1+0.02*(1-root.presentation)
+      scale:root.opened ? Motion.openScale(root.presentation*Motion.openDuration/1000) : 1+0.08*Math.pow(1-root.presentation,1.25)
       transformOrigin:Item.Center
-      property real split:root.categoriesShown?1:0
-      Behavior on split { NumberAnimation { duration:Motion.splitDuration;easing.type:Easing.InOutCubic } }
+      property real morphClock: 1.1
+      property bool separating: false
+      property var morphFrom: Motion.closedGeometry(width)
+      property var morphVelocity: null
+      readonly property var geometry: Motion.geometry(morphClock,separating,morphFrom,width,morphVelocity)
+      readonly property real split: Math.max(0,Math.min(1,(width-geometry[0])/256))
+      function morphAnimationReset() {
+        morphAnimation.stop();morphVelocity=null;separating=false;morphFrom=Motion.closedGeometry(width);morphClock=1.1
+      }
+      function morph(separate) {
+        const current=geometry.slice()
+        const velocity=morphAnimation.running?Motion.velocityAt(morphClock,separating,morphFrom,width,morphVelocity):null
+        morphAnimation.stop();morphVelocity=velocity;morphFrom=current;separating=separate;morphClock=0;morphAnimation.start()
+      }
+      NumberAnimation { id:morphAnimation;target:card;property:"morphClock";from:0;to:1.1;duration:1100;easing.type:Easing.Linear }
+      Connections { target:root;function onCategoriesShownChanged(){card.morph(root.categoriesShown)} }
       ShaderEffect {
         id:glass
         x:-24;y:-24;width:card.width+48;height:card.height+48
         property vector2d surfaceSize:Qt.vector2d(width,height)
         property real cardWidth:card.width
         property real cardHeight:card.height
-        property real split:card.split
-        property real corner:28-10*Math.min(1,Math.max(0,(card.height-56)/100))
+        property real mainWidth:card.geometry[0]
+        property vector4d centers:Qt.vector4d(card.geometry[1],card.geometry[2],card.geometry[3],card.geometry[4])
+        property vector4d radii:Qt.vector4d(card.geometry[5],card.geometry[6],card.geometry[7],card.geometry[8])
+        property real joinRadius:card.geometry[9]
+        property real corner:Math.min(card.height/2,28)
         fragmentShader:Qt.resolvedUrl("shaders/glass.frag.qsb")
       }
-      MouseArea { x:0;y:0;width:card.width-256*card.split;height:card.height;onClicked:keyCatcher.forceActiveFocus() }
+      MouseArea { x:0;y:0;width:card.geometry[0];height:card.height;onClicked:keyCatcher.forceActiveFocus() }
       LightSymbol {
         id:searchMark;x:20;y:16;width:24;height:24
         kind:root.category!=="all"&&!root.filterText&&!root.dmenuActive?"back":"search"
@@ -1199,13 +1264,13 @@ Item {
       }
       TextInput {
         id:keyCatcher
-        x:60;y:11;width:Math.max(80,card.width-256*card.split-110);height:34
-        focus:true;clip:true;color:"#f5f5f7";font.family:root.fontFamily;font.pixelSize:24
-        font.hintingPreference:Font.PreferFullHinting;renderType:Text.NativeRendering
+        x:60;y:11;width:Math.max(80,card.geometry[0]-110);height:34
+        focus:true;clip:true;color:"#f5f5f7";font.family:"Inter Display";font.pixelSize:26;font.weight:500;font.letterSpacing:-0.5
+        font.hintingPreference:Font.PreferNoHinting;renderType:Text.NativeRendering
         selectionColor:"#477aab";selectedTextColor:"white";selectByMouse:true
         verticalAlignment:TextInput.AlignVCenter
         onTextEdited:root.setFilter(text)
-        cursorDelegate:Rectangle { width:1.5;height:30;color:"#cfcfd4";visible:keyCatcher.activeFocus && cursorBlink.on }
+        cursorDelegate:Rectangle { width:1.5;height:30;color:"#cfcfd4";visible:keyCatcher.activeFocus && cursorBlink.on && !root.inlineApp }
         Timer { id:cursorBlink;property bool on:true;interval:550;running:root.opened;repeat:true;onTriggered:on=!on }
         Text {
           visible:!keyCatcher.text && !keyCatcher.preeditText
@@ -1216,6 +1281,11 @@ Item {
         Keys.onPressed:function(event) {
           if(root.deleteConfirmOpen) { event.accepted=deleteConfirm.handleKey(event);return }
           if(event.key===Qt.Key_Escape) { root.escapeLight();event.accepted=true }
+          else if(event.key===Qt.Key_Backspace && root.inlineApp && keyCatcher.selectionStart===keyCatcher.selectionEnd) {
+            root.completionSuppressed=true;root.forceResults=true;event.accepted=true
+          } else if(event.key===Qt.Key_Right && root.inlineApp && root.completion) {
+            root.setFilter(root.filterText+root.completion);event.accepted=true
+          }
           else if((event.modifiers&Qt.ControlModifier)&&event.key>=Qt.Key_1&&event.key<=Qt.Key_4) {
             root.chooseCategory(["apps","files","actions","clipboard"][event.key-Qt.Key_1]);event.accepted=true
           } else if(event.key===Qt.Key_Tab) {
@@ -1231,16 +1301,30 @@ Item {
           else if(event.key===Qt.Key_Delete&&(event.modifiers&Qt.ControlModifier)) {root.requestDeleteSelected();event.accepted=true}
         }
       }
+      Text {
+        id:completionLabel;x:keyCatcher.x+keyCatcher.contentWidth;y:keyCatcher.y;height:keyCatcher.height
+        text:root.inlineApp?root.completion:"";font:keyCatcher.font;color:keyCatcher.color
+        verticalAlignment:Text.AlignVCenter;renderType:Text.NativeRendering
+      }
+      Row {
+        visible:root.hoveredCategory>=0 && root.categoriesShown
+        x:card.geometry[0]-58;y:21;spacing:4
+        Repeater {model:["⌃",String(root.hoveredCategory+1)]
+          Rectangle {required property string modelData;width:14;height:14;radius:3;color:"#18ffffff"
+            Text {anchors.centerIn:parent;text:parent.modelData;font.family:root.fontFamily;font.pixelSize:10;color:"#b5b5ba"}
+          }
+        }
+      }
       Rectangle {
         id:openHint
-        x:Math.min(card.width-120,keyCatcher.x+keyCatcher.contentWidth+1);y:13;width:82;height:30;radius:10
-        color:"#14ffffff";visible:root.quick
+        x:Math.min(card.width-120,keyCatcher.x+keyCatcher.contentWidth+completionLabel.contentWidth+1);y:14;width:82;height:28;radius:9
+        color:"#16ffffff";visible:root.inlineApp
         Text { anchors.centerIn:parent;text:"–  Open";color:"#828286";font.family:root.fontFamily;font.pixelSize:14 }
       }
       Image {
-        x:card.width-46;y:16;width:24;height:24
-        visible:!!root.filterText&&!!root.topResult&&root.topResult.kind==="app"
-        source:visible&&root.appLibrary?root.appLibrary.iconSource(root.topResult.appIcon):""
+        x:card.width-48;y:14;width:28;height:28
+        visible:root.inlineApp
+        source:visible&&root.appLibrary?localLibrary.iconSource(root.topResult.appIcon):""
         sourceSize:Qt.size(48,48);fillMode:Image.PreserveAspectFit;smooth:true;mipmap:true
       }
       Repeater {
@@ -1248,27 +1332,31 @@ Item {
         Item {
           required property int index
           required property string modelData
-          x:card.width-248+index*64;y:0;width:56;height:56
-          visible:card.split>.01;opacity:Math.max(0,(card.split-.35)/.65)
-          scale:.85+.15*card.split
-          Rectangle { anchors.fill:parent;radius:28;color:catMouse.containsMouse?"#12ffffff":"transparent" }
-          LightSymbol { anchors.centerIn:parent;width:25;height:27;kind:modelData;ink:catMouse.containsMouse?"#d0d0d4":"#99999d" }
-          MouseArea {id:catMouse;anchors.fill:parent;hoverEnabled:true;onClicked:root.chooseCategory(modelData)}
-          ToolTip.visible:catMouse.containsMouse
-          ToolTip.delay:450
-          ToolTip.text:["Applications · Ctrl+1","Files · Ctrl+2","Omarchy actions · Ctrl+3","Clipboard · Ctrl+4"][index]
+          x:card.geometry[index+1]-28;y:0;width:56;height:56
+          visible:card.geometry[index+5]>1 && card.split>.05
+          readonly property real reveal: card.separating ? Math.max(0,Math.min(1,(card.morphClock-.25-index*.012)/.23)) : Math.max(0,1-card.morphClock/.08)
+          opacity:reveal
+          Rectangle { anchors.fill:parent;radius:28;color:catMouse.containsMouse?"#0affffff":"transparent" }
+          LightSymbol {id:catSymbol;anchors.centerIn:parent;width:25;height:27;kind:modelData;visible:false;ink:catMouse.containsMouse?"#b7b7bd":modelData==="apps"?"#96969a":"#8b8b90"}
+          MultiEffect {source:catSymbol;anchors.fill:catSymbol;blurEnabled:true;blurMax:16;blur:Math.pow(1-parent.reveal,.55)}
+          MouseArea {
+            id:catMouse;anchors.fill:parent;hoverEnabled:true
+            onEntered:root.hoveredCategory=index
+            onExited:if(root.hoveredCategory===index)root.hoveredCategory=-1
+            onClicked:root.chooseCategory(modelData)
+          }
         }
       }
       Item {
         id:resultsViewport
-        x:8;y:56;width:parent.width-16;height:Math.max(0,parent.height-y-8)
+        x:10;y:56;width:parent.width-20;height:Math.max(0,parent.height-y-8)
         clip:true;visible:height>1
         opacity:root.resultsShown?1:0
         Behavior on opacity {NumberAnimation {duration:100}}
         Rectangle {x:12;y:0;width:parent.width-24;height:1;color:"#28ffffff"}
         ListView {
           id:resultList
-          x:0;y:8;width:parent.width;height:Math.max(0,parent.height-8)
+          x:0;y:11;width:parent.width;height:Math.max(0,parent.height-11)
           model:displayModel;clip:true;spacing:0
           boundsBehavior:Flickable.StopAtBounds
           ScrollBar.vertical:ScrollBar {width:4;policy:ScrollBar.AsNeeded}
@@ -1289,12 +1377,12 @@ Item {
             required property int childCount
             readonly property bool hasCursor:root.cursorActive&&index===root.selectedIndex
             readonly property bool showDetail:detail.length>0&&kind!=="app"
-            width:ListView.view.width;height:Motion.rowHeight;radius:11
-            color:hasCursor?"#2affffff":"transparent"
+            width:ListView.view.width;height:Motion.rowHeight;radius:18
+            color:hasCursor?"#1effffff":"transparent"
             Image {
-              x:12;y:14;width:28;height:28;visible:row.kind==="app"
-              source:visible&&root.appLibrary?root.appLibrary.iconSource(row.appIcon):""
-              sourceSize:Qt.size(56,56);fillMode:Image.PreserveAspectFit;smooth:true;mipmap:true
+              x:10;y:12;width:32;height:32;visible:row.kind==="app"
+              source:visible&&root.appLibrary?localLibrary.iconSource(row.appIcon):""
+              sourceSize:Qt.size(64,64);fillMode:Image.PreserveAspectFit;smooth:true;mipmap:true
             }
             LightSymbol {x:13;y:14;width:26;height:28;visible:row.kind==="files"||row.kind==="clipboard";kind:row.kind;ink:"#c5c5cb"}
             Text {
@@ -1302,10 +1390,10 @@ Item {
               text:row.icon;font.family:row.iconFont||"Symbols Nerd Font";font.pixelSize:23;color:"#c5c5cb"
               horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter;renderType:Text.NativeRendering
             }
-            Column {
-              x:52;width:parent.width-108;anchors.verticalCenter:parent.verticalCenter;spacing:2
-              Text {width:parent.width;text:row.label;color:"#f5f5f7";font.family:root.fontFamily;font.pixelSize:16;renderType:Text.NativeRendering;elide:Text.ElideRight}
-              Text {width:parent.width;visible:row.showDetail;text:row.detail;color:"#89898e";font.family:root.fontFamily;font.pixelSize:12;renderType:Text.NativeRendering;elide:Text.ElideMiddle}
+            Item {
+              x:61;width:parent.width-116;height:parent.height
+              Text {y:row.showDetail?8:0;height:row.showDetail?24:parent.height;verticalAlignment:Text.AlignVCenter;width:parent.width;text:row.label;color:"#f5f5f7";font.family:root.fontFamily;font.pixelSize:17;font.weight:500;font.letterSpacing:-0.5;font.hintingPreference:Font.PreferNoHinting;renderType:Text.NativeRendering;elide:Text.ElideRight}
+              Text {y:29;height:24;verticalAlignment:Text.AlignVCenter;width:parent.width;visible:row.showDetail;text:row.detail;color:"#606065";font.family:"Inter Display";font.pixelSize:16;font.weight:350;font.letterSpacing:0;font.hintingPreference:Font.PreferNoHinting;renderType:Text.NativeRendering;elide:Text.ElideMiddle}
             }
             LightSymbol {x:parent.width-30;y:20;width:14;height:16;kind:"chevron";visible:row.kind==="menu"||row.kind==="link";ink:"#85858b"}
             Text {anchors.right:parent.right;anchors.rightMargin:14;anchors.verticalCenter:parent.verticalCenter;text:"↵";visible:row.hasCursor&&row.kind!=="menu"&&row.kind!=="link";color:"#8e8e93";font.pixelSize:17}
@@ -1323,7 +1411,7 @@ Item {
         }
       }
       MouseArea {
-        x:0;y:0;width:card.width-256*card.split;height:7
+        x:0;y:0;width:card.geometry[0];height:7
         property point last
         onPressed:function(mouse){last=mapToItem(panel.contentItem,mouse.x,mouse.y)}
         onPositionChanged:function(mouse){if(!pressed)return;const p=mapToItem(panel.contentItem,mouse.x,mouse.y);root.dragX+=p.x-last.x;root.dragY+=p.y-last.y;last=p}

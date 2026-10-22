@@ -28,7 +28,7 @@ Item {
   Process {
     id:normalize
     command:["python3",decodeURIComponent(Qt.resolvedUrl("normalize-icons.py").toString().replace("file://","")),
-      JSON.stringify(library.sortedEntries("").map(e=>library.originalIcon(e.entry.icon)).filter(s=>s.startsWith("file:")))]
+      JSON.stringify(library.sortedEntries("").map(e=>({id:e.entry.id,source:library.originalIcon(e.entry.icon)})).filter(e=>e.source.startsWith("file:")))]
     stdout:StdioCollector {onStreamFinished:{try{library.normalized=JSON.parse(text)}catch(e){}}}
   }
   function refreshIcons() { if(!scan.running)scan.running=true }
