@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchylight.menu",
+  "name": "OmarchyLight",
+  "version": "0.1.0",
+  "author": "saitakarcesme / Omarchy contributors",
+  "description": "Spotlight-inspired Omarchy launcher with liquid category transitions",
+  "kinds": [
+    "menu",
+    "bar-widget"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "menu": "Menu.qml",
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "OmarchyLight",
+    "description": "Launches the Omarchy menu",
+    "category": "Compositor",
+    "allowMultiple": false
+  },
+  "omarchy": {
+    "clonedFrom": "omarchy.menu"
+  }
+}

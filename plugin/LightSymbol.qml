@@ -1,0 +1,24 @@
+import QtQuick
+import QtQuick.Window
+Image {
+    property string kind: "search"
+    property color ink: "#99999d"
+    sourceSize: Qt.size(Math.max(1,Math.round(width*Screen.devicePixelRatio)), Math.max(1,Math.round(height*Screen.devicePixelRatio)))
+    smooth: false
+    fillMode: Image.PreserveAspectFit
+    source: "data:image/svg+xml;utf8," + encodeURIComponent(mark())
+    function mark() {
+        const paths={
+            search:'<circle cx="10" cy="10" r="8"/><path d="m16 16 6 6"/>',
+            apps:'<path d="m10 3 10 18M14 3 4 21M3 16h18"/>',
+            files:'<path d="M2.5 7V5.5A1.5 1.5 0 0 1 4 4h5l2 2h9a1.5 1.5 0 0 1 1.5 1.5v12A1.5 1.5 0 0 1 20 21H4a1.5 1.5 0 0 1-1.5-1.5Z"/><path d="M3 9h18"/>',
+            actions:'<path d="m12 2 9 6a2 2 0 0 1 0 3l-9 6-9-6a2 2 0 0 1 0-3Zm-8 12-1 1a2 2 0 0 0 0 3l9 6 9-6a2 2 0 0 0 0-3l-1-1"/>',
+            clipboard:'<path d="M10 3V1h7l5 5v13h-6M17 1v6h5M3 7h7l6 6v11H3Zm7 0v6h6"/>',
+            back:'<path d="m15 5-7 7 7 7"/>',
+            chevron:'<path d="m9 5 7 7-7 7"/>',
+            settings:'<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2" fill="#171719"/><circle cx="16" cy="12" r="2" fill="#171719"/><circle cx="10" cy="18" r="2" fill="#171719"/>',
+            command:'<rect x="3" y="4" width="18" height="16" rx="3"/><path d="m7 9 3 3-3 3m6 0h4"/>'
+        };
+        return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 '+(kind==='search'?'24':'26')+'"><g fill="none" stroke="'+ink+'" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'+(paths[kind]||paths.command)+'</g></svg>';
+    }
+}
