@@ -33,12 +33,14 @@ The source movie is variable-frame-rate, nominally 60 fps. An audit of original 
 
 Resampling repeats available frames; it cannot recover the missing images. The movie also has no timestamp for the originating physical key or pointer event. Aligning two visible onsets can compare animation shape but cannot establish equal input latency.
 
-Compression noise does not explain the remaining font mismatch. Across 25 stable reference frames per query, temporal grayscale RMS medians were 0.00, 4.18 and 4.23; maxima were 0.00, 5.10 and 6.95. These are not directly interchangeable with the RGB reproduction metric, but the stable chatgpt sample alone rules out attributing all of its residual to temporal source noise. The reference uses Apple's system typography; this machine has Inter, not San Francisco. No Apple font assets are bundled.
+Compression noise does not explain the remaining font mismatch. Across 25 stable reference frames per query, temporal RGB RMS medians were 0.00, 4.18 and 4.23; maxima were 0.00, 5.10 and 6.95. Temporal noise and cross-renderer reproduction error describe different comparisons, even though both use RGB RMS over the same query regions. The stable chatgpt sample alone rules out attributing all of its residual to temporal source noise. The reference uses Apple's system typography; this machine has Inter, not San Francisco. No Apple font assets are bundled.
 
 ## Next evidence needed
 
 The optional [Mac reference capture tool](../tools/reference-mac/README.md) prepares a way to record display and input timestamps together and obtain lossless stills. Its Python analysis is tested; its Swift recorder is **not yet compiled or run on a Mac**. A successful real Mac run is necessary before trusting its output. Event-to-WindowServer timing would still not certify switch-to-photon latency.
 
 A new reference can resolve sampling and event-alignment questions. It will not by itself make Qt/Inter glyphs identical to macOS system text or guarantee identical blur across all wallpapers. Those remaining differences must be assessed explicitly; they must not be hidden by declaring the goal complete.
+
+A fresh capture from the installed version accompanying `2b5a6aa` confirmed the updated Spotify plate and reproduced the query RGB RMS values: 22.508, 16.768 and 17.907. The remaining text mismatch is present in the current installation, not just in an outdated comparison image.
 
 No private reference video, backdrop or comparison crop is included in the repository.
