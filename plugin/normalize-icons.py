@@ -17,7 +17,7 @@ CACHE = Path.home() / '.cache/omarchylight/artwork'
 STYLES = {
     'google-chrome': ('#fafafa', .86),
     'discord': ('#5662f6', .73),
-    'spotify': ('#151515', .86),
+    'spotify': ('#050505', .86),
     'com.microsoft.VSCode': ('#fafafa', .82),
     'localsend': ('#183b3c', .84),
 }

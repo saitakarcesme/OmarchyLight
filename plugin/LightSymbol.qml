@@ -9,7 +9,7 @@ Image {
     source: "data:image/svg+xml;utf8," + encodeURIComponent(mark())
     function mark() {
         const paths={
-            search:'<circle cx="10" cy="10" r="8"/><path d="m16 16 6 6"/>',
+            search:'<circle cx="9.85" cy="9.75" r="8.35" stroke-width="1.9"/><path d="m15.76 15.66 6.28 6.54" stroke-width="2.66"/>',
             apps:'<g stroke-width="2.7"><path d="m10 5 1.5 2.6M14 5 6.5 18M4.8 20.9l-.5.9M3.4 17h11M14.4 11.4l6 10.4M18.4 17H21"/></g>',
             files:'<path d="M1.5 7V5.5A1.5 1.5 0 0 1 3 4h5l3 2h10a1.5 1.5 0 0 1 1.5 1.5v12A1.5 1.5 0 0 1 21 21H3a1.5 1.5 0 0 1-1.5-1.5Z"/><path d="M4 9h16"/>',
             actions:'<path d="m12 2 9 6a2 2 0 0 1 0 3l-9 6-9-6a2 2 0 0 1 0-3Zm-8 12-1 1a2 2 0 0 0 0 3l9 6 9-6a2 2 0 0 0 0-3l-1-1"/>',

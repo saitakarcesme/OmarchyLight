@@ -50,6 +50,7 @@ Item {
   function ping() { return "ok" }
 
   property string fontFamily: "Inter"
+  readonly property bool hasVariableFont: Qt.fontFamilies().indexOf("Inter Variable")>=0
   // JSONC menu definitions. The shell parses both at startup and merges
   // the user file on top of the defaults, so the keybind → IPC → visible
   // path doesn't have to shell out to bash + jq on every open.
@@ -1301,15 +1302,19 @@ Item {
       }
       MouseArea { x:0;y:0;width:card.geometry[0];height:card.height;onClicked:keyCatcher.forceActiveFocus() }
       LightSymbol {
-        id:searchMark;x:20;y:16;width:24;height:24
+        id:searchMark;x:20;y:16;width:24;height:24;ink:"#939397"
         kind:root.category!=="all"&&!root.filterText&&!root.dmenuActive?"back":"search"
         MouseArea { anchors.fill:parent;onClicked: { if(root.category!=="all"&&!root.filterText)root.goBack();else keyCatcher.forceActiveFocus() } }
       }
       TextInput {
         id:keyCatcher
-        x:60;y:11;width:Math.max(80,card.geometry[0]-110);height:34
-        focus:true;clip:true;color:"#f5f5f7";font.family:"Inter Display";font.pixelSize:26;font.weight:500;font.letterSpacing:-0.5
-        font.hintingPreference:Font.PreferNoHinting;renderType:Text.NativeRendering
+        x:root.hasVariableFont?59.5:60;y:11;width:Math.max(80,card.geometry[0]-110);height:34
+        focus:true;clip:true;color:root.hasVariableFont?"white":"#f5f5f7"
+        font.family:root.hasVariableFont?"Inter Variable":"Inter Display"
+        font.pixelSize:root.hasVariableFont?25:26;font.weight:root.hasVariableFont?475:500
+        font.variableAxes:root.hasVariableFont?({wght:475,opsz:24}):({})
+        font.letterSpacing:root.hasVariableFont?-.25:-.5
+        font.hintingPreference:Font.PreferNoHinting;renderType:root.hasVariableFont?Text.QtRendering:Text.NativeRendering
         selectionColor:"#477aab";selectedTextColor:"white";selectByMouse:true
         verticalAlignment:TextInput.AlignVCenter
         onTextEdited:root.setFilter(text)
@@ -1318,7 +1323,7 @@ Item {
         Text {
           visible:!keyCatcher.text && !keyCatcher.preeditText
           anchors.verticalCenter:parent.verticalCenter
-          text:root.placeholder();color:"#96969a";font:parent.font;renderType:Text.NativeRendering
+          text:root.placeholder();color:"#96969a";font:parent.font;renderType:keyCatcher.renderType
         }
         Keys.priority:Keys.BeforeItem
         Keys.onPressed:function(event) {
@@ -1347,7 +1352,7 @@ Item {
       Text {
         id:completionLabel;x:keyCatcher.x+keyCatcher.contentWidth;y:keyCatcher.y;height:keyCatcher.height
         text:root.inlineApp?root.completion:"";font:keyCatcher.font;color:keyCatcher.color
-        verticalAlignment:Text.AlignVCenter;renderType:Text.NativeRendering
+        verticalAlignment:Text.AlignVCenter;renderType:keyCatcher.renderType
       }
       Row {
         visible:root.hoveredCategory>=0 && root.categoriesShown
@@ -1360,16 +1365,17 @@ Item {
       }
       Rectangle {
         id:openHint
-        x:Math.min(card.width-120,keyCatcher.x+keyCatcher.contentWidth+completionLabel.contentWidth+1);y:14;width:82;height:28;radius:9
-        color:openMouse.containsMouse?"#22ffffff":"#16ffffff";visible:root.inlineApp
+        x:Math.min(card.width-120,keyCatcher.x+keyCatcher.contentWidth+completionLabel.contentWidth+1);y:12;width:82;height:30;radius:11
+        color:openMouse.containsMouse?"#20ffffff":"#12ffffff";visible:root.inlineApp
         Accessible.role:Accessible.Button
         Accessible.name:"Open "+(root.topResult?root.topResult.label:"")
         Accessible.onPressAction:root.activateIndex(0,true)
         MouseArea {id:openMouse;anchors.fill:parent;hoverEnabled:true;cursorShape:Qt.PointingHandCursor;onClicked:root.activateIndex(0,true)}
-        Text { anchors.centerIn:parent;text:"–  Open";color:"#828286";font.family:root.fontFamily;font.pixelSize:14 }
+        Rectangle {x:13;y:18;width:12;height:1;radius:.5;color:"#616165"}
+        Text {x:35.5;y:4;width:44;height:28;text:"Open";color:"#5e5e62";font.family:"Inter";font.pixelSize:15;font.weight:500;font.letterSpacing:-.4;font.hintingPreference:Font.PreferNoHinting;renderType:Text.QtRendering;verticalAlignment:Text.AlignVCenter}
       }
       Image {
-        x:card.width-48;y:14;width:28;height:28
+        x:card.width-46;y:15.5;width:26;height:26
         visible:root.inlineApp
         source:visible&&root.appLibrary?localLibrary.iconSource(root.topResult.appIcon):""
         sourceSize:Qt.size(width*Math.max(2,Screen.devicePixelRatio),height*Math.max(2,Screen.devicePixelRatio));fillMode:Image.PreserveAspectFit;smooth:true;mipmap:true
@@ -1399,7 +1405,7 @@ Item {
         clip:true;visible:height>1
         opacity:root.resultsShown?1:0
         Behavior on opacity {NumberAnimation {duration:100}}
-        Rectangle {x:12;y:0;width:parent.width-24;height:1;color:"#28ffffff"}
+        Rectangle {x:10;y:0;width:parent.width-20;height:1;color:"#28ffffff"}
         ListView {
           id:resultList
           x:0;y:11;width:parent.width;height:Math.max(0,parent.height-11)
@@ -1426,7 +1432,7 @@ Item {
             width:ListView.view.width;height:Motion.rowHeight;radius:18
             color:hasCursor?"#20f7fbff":"transparent"
             Image {
-              x:10;y:12;width:32;height:32;visible:row.kind==="app"
+              x:11.5;y:13.5;width:29;height:29;visible:row.kind==="app"
               source:visible&&root.appLibrary?localLibrary.iconSource(row.appIcon):""
               sourceSize:Qt.size(width*Math.max(2,Screen.devicePixelRatio),height*Math.max(2,Screen.devicePixelRatio));fillMode:Image.PreserveAspectFit;smooth:true;mipmap:true
             }
@@ -1437,12 +1443,25 @@ Item {
               horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter;renderType:Text.NativeRendering
             }
             Item {
-              x:61;width:parent.width-116;height:parent.height
+              x:61;width:parent.width-x-(rowHint.visible?rowHint.width+28:45);height:parent.height
               Text {y:row.showDetail?8:0;height:row.showDetail?24:parent.height;verticalAlignment:Text.AlignVCenter;width:parent.width;text:row.label;color:"#f5f5f7";font.family:root.fontFamily;font.pixelSize:17;font.weight:500;font.letterSpacing:-0.5;font.hintingPreference:Font.PreferNoHinting;renderType:Text.NativeRendering;elide:Text.ElideRight}
               Text {y:29;height:24;verticalAlignment:Text.AlignVCenter;width:parent.width;visible:row.showDetail;text:row.detail;color:"#606065";font.family:"Inter Display";font.pixelSize:16;font.weight:350;font.letterSpacing:0;font.hintingPreference:Font.PreferNoHinting;renderType:Text.NativeRendering;elide:Text.ElideMiddle}
             }
             LightSymbol {x:parent.width-30;y:20;width:14;height:16;kind:"chevron";visible:row.kind==="menu"||row.kind==="link";ink:"#85858b"}
-            Text {anchors.right:parent.right;anchors.rightMargin:14;anchors.verticalCenter:parent.verticalCenter;text:"↵";visible:row.hasCursor&&row.kind!=="menu"&&row.kind!=="link";color:"#8e8e93";font.pixelSize:17}
+            Row {
+              id:rowHint
+              anchors.right:parent.right;anchors.rightMargin:10;anchors.verticalCenter:parent.verticalCenter;spacing:8
+              visible:row.hasCursor&&row.kind!=="menu"&&row.kind!=="link"
+              Text {
+                width:Math.min(160,implicitWidth);height:18;verticalAlignment:Text.AlignVCenter;elide:Text.ElideRight
+                text:root.dmenuActive?"Select":row.kind==="app"?"Open "+row.label:row.kind==="clipboard"?"Paste":row.kind==="files"?"Open File":"Run"
+                color:"#76767c";font.family:"Inter";font.pixelSize:10;font.weight:500
+              }
+              Rectangle {
+                width:27;height:18;radius:5;color:"#29ffffff"
+                Text {anchors.centerIn:parent;text:"↵";color:"#b3b3b7";font.family:"Inter";font.pixelSize:13}
+              }
+            }
             MouseArea {
               id:rowMouse;anchors.fill:parent;hoverEnabled:true
               onPositionChanged:function(mouse){root.selectFromPointer(row.index,row,mouse)}

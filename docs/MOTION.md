@@ -10,10 +10,12 @@ The private reference is a 2880×1800 Retina recording, nominally 60 fps with va
 | Separated search surface | 384×56 px |
 | Category circles | 27.5 px radius, 64 px center spacing |
 | Surface corner radius | 28 px, including expanded results |
-| Search text origin | 60 px from surface left |
+| Search text origin | 59.5 px (60 px with static font fallback) |
 | First selected result | x=10, y=67, width=620, height=56, radius=18 |
 | Result text origin | 71 px from surface left |
-| Result icons | 32 px; original installed application icons |
+| Result icons | 29 px; original installed application icons |
+| Inline app icon | 26 px |
+| Inline Open button | 82×30 px, y=12, radius=11 |
 | Result viewport | up to seven rows; 13 px bottom inset |
 | Placement | horizontal center; top=129/900 of screen height |
 | Glass | base alpha=0.785 with a separate edge and shadow |
@@ -41,6 +43,14 @@ Opening is now deferred until Qt submits the window's first transparent frame (`
 
 The reference's material regression against the raw wallpaper estimated alpha near 0.715. Applying that value directly through Hyprland was too bright and blue. A second calibration compared actual composited captures against the same reference background and selected alpha 0.785 with a compensated base color. In fixed text-free regions, mean absolute 8-bit channel error fell from 1.18 to 0.94 in the header and from 1.69 to 0.76 in the body. This is a measured correction for this compositor configuration, not a universally identical material across arbitrary blur settings.
 
+## Typography and small controls
+
+The input uses the installed Inter Variable face at 25 px, weight axis 475 and optical-size axis 24, with −0.25 px letter spacing. The placeholder and completion use the same rendering path. If that face is absent, the existing Inter Display 26 px fallback remains. Three reference queries (chatgpt, spotify, discord) were evaluated together so one string could not determine the choice. In the neutral font-grid fit, combined grayscale RMS fell from 23.80 to 19.64 intensity levels. Live RGB crops measured 22.51, 16.77 and 17.91 respectively; these residuals still show that this is not San Francisco.
+
+The Open label uses Inter 15 px/500 with independently positioned dash and text. Its fixed-region mean absolute RGB error fell from 8.87 to 2.44 before the input-font change. The search mark's measured circle radius is 8.35 px with a 1.9 px stroke; its handle uses a 2.66 px stroke. Live grayscale RMS in the search-mark crop fell from 16.43 to 3.73. The reference video and all comparison crops stay private.
+
+Selected rows use a small action description and keycap. They describe actual Linux behavior: Open, Paste, Run or Select with Enter. They do not advertise macOS's app-specific “Search …”/Tab integration, which is absent here. Original local app artwork remains the source; its drawing can differ from the Mac app's asset. For Spotify's unframed circle, the automatically added plate is near black so its silhouette remains visible on dark glass.
+
 ## Verification
 
 `node tests/test_motion.js` checks measured width samples, opening/collapse undershoot, finite geometry, settled endpoints, position/velocity continuity on interruption, measured glyph contrast/blur, and visibility-reversal continuity. `python3 tests/test_install.py` checks isolated install/update/uninstall restoration.
@@ -49,8 +59,8 @@ Live checks cover physical-keycode Super+Space open/close and rapid toggles, pre
 
 ## Limits still under review
 
-Inter and Inter Display are used instead of San Francisco. Qt text rasterization and Hyprland backdrop blur differ from macOS. The recording cannot reveal the exact physical input timestamps or Apple's internal animation parameters. Search contents reflect local Linux applications and Omarchy providers. Live opening verification exposed and corrected two integration errors: a Behavior could start with the previous direction’s duration/easing, and an unmapped PanelWindow could report zero dimensions. Opening/closing now use explicit animations and dimensions come from the screen. Unchanged result models are retained and icon rescans are deferred past the opening.
+Inter Variable, Inter and Inter Display are used instead of San Francisco. Qt text rasterization and Hyprland backdrop blur differ from macOS. The recording cannot reveal the exact physical input timestamps or Apple's internal animation parameters. Search contents reflect local Linux applications and Omarchy providers. Live opening verification exposed and corrected two integration errors: a Behavior could start with the previous direction’s duration/easing, and an unmapped PanelWindow could report zero dimensions. Opening/closing now use explicit animations and dimensions come from the screen. Unchanged result models are retained and icon rescans are deferred past the opening.
 
 Those differences must not be hidden by calling the entire result pixel-identical.
 
-Sources: [Apple Spotlight guide](https://support.apple.com/guide/mac-help/find-what-you-need-with-spotlight-mchlp1008/mac), [Qt ShaderEffect](https://doc.qt.io/qt-6/qml-qtquick-shadereffect.html), [Qt Window frame signals](https://doc.qt.io/qt-6/qml-qtquick-window.html#frameSwapped-signal), [Hyprland layer rules](https://wiki.hypr.land/configuring/core/rules/layer-rules/).
+Sources: [Apple Spotlight guide](https://support.apple.com/guide/mac-help/find-what-you-need-with-spotlight-mchlp1008/mac), [Qt variable font axes](https://doc.qt.io/qt-6/qml-font.html#variableAxes-prop), [Qt ShaderEffect](https://doc.qt.io/qt-6/qml-qtquick-shadereffect.html), [Qt Window frame signals](https://doc.qt.io/qt-6/qml-qtquick-window.html#frameSwapped-signal), [Hyprland layer rules](https://wiki.hypr.land/configuring/core/rules/layer-rules/).

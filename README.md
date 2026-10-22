@@ -56,11 +56,12 @@ Extra dependencies: ImageMagick, `gtk-launch`, `uwsm-app`. The compiled shader i
 
 ```sh
 /usr/lib/qt6/bin/qsb --qt6 -o plugin/shaders/glass.frag.qsb plugin/shaders/glass.frag
+/usr/lib/qt6/bin/qsb --qt6 -o plugin/shaders/gaussian.frag.qsb plugin/shaders/gaussian.frag
 ```
 
 ## Requirements
 
-This targets **Omarchy's Quickshell desktop and Hyprland Lua configuration**, tested with Hyprland 0.56.2, Quickshell 0.3.2 and Qt 6.12. Older Waybar/Walker Omarchy releases are not supported. Python 3 and the normal Omarchy command-line tools must be installed. The UI uses Inter and Inter Display (with the system font fallback if unavailable). ImageMagick prepares installed artwork into the user cache; no replacement brand assets are bundled.
+This targets **Omarchy's Quickshell desktop and Hyprland Lua configuration**, tested with Hyprland 0.56.2, Quickshell 0.3.2 and Qt 6.12. Older Waybar/Walker Omarchy releases are not supported. Python 3 and the normal Omarchy command-line tools must be installed. The UI uses Inter Variable, Inter and Inter Display. The input falls back to Inter Display if Inter Variable is unavailable, then to the system font. ImageMagick prepares installed artwork into the user cache; no replacement brand assets are bundled.
 
 ## Install / update
 
