@@ -30,9 +30,10 @@ Media is captured from the running desktop over a neutral test background.
 | Right on a completion | Accept the suggested suffix |
 | Page Up / Page Down | Move six rows |
 | Enter | Run selected result |
+| Click Open | Launch the inline application match |
 | Escape | Clear query, return to root, then close |
 | Ctrl+Delete | Show native uninstall confirmation for an application |
-| Drag the upper edge | Move the panel within the monitor |
+| Drag an empty search field or the upper edge | Move the panel within the monitor |
 
 ## Motion and fidelity
 

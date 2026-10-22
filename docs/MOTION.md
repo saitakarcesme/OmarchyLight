@@ -39,7 +39,7 @@ The reference's material regression against the raw wallpaper estimated alpha ne
 
 `node tests/test_motion.js` checks measured width samples, opening/collapse undershoot, finite geometry, settled endpoints, and position/velocity continuity on interruption. `python3 tests/test_install.py` checks isolated install/update/uninstall restoration.
 
-Live checks cover physical-keycode Super+Space open/close and rapid toggles, prefix completion, staged Backspace, Down expansion, retained inline actions, reopening, Unicode filename lookup, actual desktop-entry discovery/launching, clipboard navigation, and native selection/input response protocols. Testing uses two 1920×1080 scale-1 monitors. Higher and fractional scales are not visually certified on this machine.
+Live checks cover physical-keycode Super+Space open/close and rapid toggles, prefix completion, staged Backspace, Down expansion, retained inline actions, reopening, empty-field dragging with position retention, nonempty text selection, clickable inline Open, Unicode filename lookup, actual desktop-entry discovery/launching, clipboard navigation, and native selection/input response protocols. Testing uses two 1920×1080 scale-1 monitors. Higher and fractional scales are not visually certified on this machine.
 
 ## Limits still under review
 

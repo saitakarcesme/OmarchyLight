@@ -2,6 +2,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Effects
 import Quickshell.Hyprland
@@ -1189,7 +1190,7 @@ Item {
     target:"omarchylight"
     function inspect(): string { return JSON.stringify({opened:root.opened,category:root.category,route:root.activeMenu,query:root.filterText,
       appLibrary:!!root.appLibrary,apps:root.appLibrary?root.appLibrary.sortedEntries("").length:-1,loaded:root.providersLoaded,appRows:root.itemOrder.filter(id=>id.indexOf("apps.")===0).length,count:displayModel.count,results:root.resultsShown,quick:root.quick,inline:root.inlineApp,completion:root.completion,hover:root.hoveredCategory,geometry:card.geometry,split:card.split,presentation:root.presentation,scale:card.scale,
-      bounds:{x:card.x,y:card.y,width:card.width,height:card.height},screen:panel.screen?panel.screen.name:"",shader:glass.status}) }
+      bounds:{x:card.x,y:card.y,width:card.width,height:card.height},actionBounds:{x:card.x+openHint.x,y:card.y+openHint.y,width:openHint.width,height:openHint.height},screen:panel.screen?panel.screen.name:"",shader:glass.status}) }
     // Deterministic local visual verification: freeze the liquid transition at a timestamp.
     function sampleMerge(seconds:real):void {
       root.categoriesReady=true;morphAnimation.stop();card.morphVelocity=null;card.morphFrom=Motion.separatedGeometry(card.width)
@@ -1318,14 +1319,18 @@ Item {
       Rectangle {
         id:openHint
         x:Math.min(card.width-120,keyCatcher.x+keyCatcher.contentWidth+completionLabel.contentWidth+1);y:14;width:82;height:28;radius:9
-        color:"#16ffffff";visible:root.inlineApp
+        color:openMouse.containsMouse?"#22ffffff":"#16ffffff";visible:root.inlineApp
+        Accessible.role:Accessible.Button
+        Accessible.name:"Open "+(root.topResult?root.topResult.label:"")
+        Accessible.onPressAction:root.activateIndex(0,true)
+        MouseArea {id:openMouse;anchors.fill:parent;hoverEnabled:true;cursorShape:Qt.PointingHandCursor;onClicked:root.activateIndex(0,true)}
         Text { anchors.centerIn:parent;text:"–  Open";color:"#828286";font.family:root.fontFamily;font.pixelSize:14 }
       }
       Image {
         x:card.width-48;y:14;width:28;height:28
         visible:root.inlineApp
         source:visible&&root.appLibrary?localLibrary.iconSource(root.topResult.appIcon):""
-        sourceSize:Qt.size(48,48);fillMode:Image.PreserveAspectFit;smooth:true;mipmap:true
+        sourceSize:Qt.size(width*Math.max(2,Screen.devicePixelRatio),height*Math.max(2,Screen.devicePixelRatio));fillMode:Image.PreserveAspectFit;smooth:true;mipmap:true
       }
       Repeater {
         model:["apps","files","actions","clipboard"]
@@ -1382,7 +1387,7 @@ Item {
             Image {
               x:10;y:12;width:32;height:32;visible:row.kind==="app"
               source:visible&&root.appLibrary?localLibrary.iconSource(row.appIcon):""
-              sourceSize:Qt.size(64,64);fillMode:Image.PreserveAspectFit;smooth:true;mipmap:true
+              sourceSize:Qt.size(width*Math.max(2,Screen.devicePixelRatio),height*Math.max(2,Screen.devicePixelRatio));fillMode:Image.PreserveAspectFit;smooth:true;mipmap:true
             }
             LightSymbol {x:13;y:14;width:26;height:28;visible:row.kind==="files"||row.kind==="clipboard";kind:row.kind;ink:"#c5c5cb"}
             Text {
@@ -1411,10 +1416,19 @@ Item {
         }
       }
       MouseArea {
-        x:0;y:0;width:card.geometry[0];height:7
+        x:0;y:0;width:card.geometry[0]
+        height:root.category==="all" && !root.filterText && !keyCatcher.preeditText && !root.dmenuActive?56:7
+        cursorShape:height>7?Qt.IBeamCursor:Qt.ArrowCursor
         property point last
-        onPressed:function(mouse){last=mapToItem(panel.contentItem,mouse.x,mouse.y)}
-        onPositionChanged:function(mouse){if(!pressed)return;const p=mapToItem(panel.contentItem,mouse.x,mouse.y);root.dragX+=p.x-last.x;root.dragY+=p.y-last.y;last=p}
+        property point start
+        property bool dragging:false
+        onPressed:function(mouse){last=mapToItem(panel.contentItem,mouse.x,mouse.y);start=last;dragging=false;keyCatcher.forceActiveFocus()}
+        onPositionChanged:function(mouse){
+          if(!pressed)return
+          const p=mapToItem(panel.contentItem,mouse.x,mouse.y)
+          if(!dragging && Math.hypot(p.x-start.x,p.y-start.y)<4)return
+          dragging=true;root.dragX+=p.x-last.x;root.dragY+=p.y-last.y;last=p
+        }
       }
       ConfirmDialog {
         id:deleteConfirm;anchors.fill:parent;z:10;opened:root.deleteConfirmOpen
