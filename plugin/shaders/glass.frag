@@ -33,9 +33,9 @@ void main() {
     float inside=1.0-smoothstep(-aa*0.5,aa*0.5,d);
     float edge=(1.0-smoothstep(0.45,1.75,-d))*inside;
     float shadow=exp(-max(d,0.0)/7.0)*0.12*(1.0-inside);
-    vec3 base=vec3(0.082,0.082,0.090);
+    vec3 base=vec3(0.0775,0.0777,0.0801);
     // One continuous translucent material across joined circles and capsule.
-    float a=mix(0.715,0.91,edge)*inside+shadow;
+    float a=mix(0.785,0.91,edge)*inside+shadow;
     vec3 line=vec3(0.38);
     vec3 rgb=mix(base,line,edge*0.75);
     fragColor=vec4(rgb*a,a)*qt_Opacity;

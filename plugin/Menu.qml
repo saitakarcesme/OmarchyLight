@@ -1378,7 +1378,7 @@ Item {
             readonly property bool hasCursor:root.cursorActive&&index===root.selectedIndex
             readonly property bool showDetail:detail.length>0&&kind!=="app"
             width:ListView.view.width;height:Motion.rowHeight;radius:18
-            color:hasCursor?"#1effffff":"transparent"
+            color:hasCursor?"#20f7fbff":"transparent"
             Image {
               x:10;y:12;width:32;height:32;visible:row.kind==="app"
               source:visible&&root.appLibrary?localLibrary.iconSource(row.appIcon):""

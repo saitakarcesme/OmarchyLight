@@ -16,7 +16,7 @@ The private reference is a 2880×1800 Retina recording, nominally 60 fps with va
 | Result icons | 32 px; original installed application icons |
 | Result viewport | up to seven rows; 13 px bottom inset |
 | Placement | horizontal center; top=129/900 of screen height |
-| Glass | base alpha=0.715 with a separate edge and shadow |
+| Glass | base alpha=0.785 with a separate edge and shadow |
 
 A prefix match remains in the capsule with a completion suffix and Open action. Down expands the results without removing that action. Backspace first dismisses the completion, preserving the typed query. Hovering a category changes the placeholder and exposes the corresponding Linux shortcut. Reopening restores the remembered query and expanded/compact state.
 
@@ -32,6 +32,8 @@ The canonical models use an underdamped second-order step response. The capsule 
 - **Interruption:** a new gesture starts at the previous position and velocity. Canonical delays apply to uninterrupted transitions; interrupted gestures use a continuous spring retarget.
 
 These fit errors describe specific measured traces, not a claim that the entire UI is pixel-identical. Live captures also compare the shader-rendered silhouette at fixed phases; nominal model fit alone is not sufficient validation.
+
+The reference's material regression against the raw wallpaper estimated alpha near 0.715. Applying that value directly through Hyprland was too bright and blue. A second calibration compared actual composited captures against the same reference background and selected alpha 0.785 with a compensated base color. In fixed text-free regions, mean absolute 8-bit channel error fell from 1.18 to 0.94 in the header and from 1.69 to 0.76 in the body. This is a measured correction for this compositor configuration, not a universally identical material across arbitrary blur settings.
 
 ## Verification
 
