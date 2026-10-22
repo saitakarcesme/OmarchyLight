@@ -7,6 +7,7 @@ import QtQuick.Controls
 import Quickshell.Hyprland
 import "Motion.js" as Motion
 import "ClipboardHistory.js" as ClipboardHistory
+import "WebShortcuts.js" as WebShortcuts
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
@@ -600,7 +601,7 @@ Item {
   function rebuildDisplay(afterFade) {
     // Keep the outgoing rows through their fade. Replacing them with the root
     // menu immediately makes an unrelated Apps row flash during collapse.
-    if(!afterFade && opened && !resultsShown && presentHeight>56.5) {
+    if(!afterFade && opened && !resultsShown && presentHeight>56.5 && !webShortcut) {
       if(!clearResultsDelay.running)clearResultsDelay.start()
       return
     }
@@ -677,6 +678,9 @@ Item {
         })
       }
     }
+
+    // Reserve exact website aliases ahead of application matches.
+    if (webShortcut) rows.unshift(WebShortcuts.row(query))
 
     const signature=JSON.stringify(rows)
     if(signature!==displaySignature) {
@@ -799,7 +803,10 @@ Item {
     if (index < 0 || index >= displayModel.count) return
 
     var row = displayModel.get(index)
-    if (row.kind === "menu" || row.kind === "link") {
+    if (row.kind === "web") {
+      const command = WebShortcuts.command(row.itemId)
+      if (command) { root.cancel(); Quickshell.execDetached(command) }
+    } else if (row.kind === "menu" || row.kind === "link") {
       root.setActiveMenu(row.target || row.itemId, true, fromPointer)
     } else if (row.kind === "app") {
       var appId = row.appId
@@ -1142,17 +1149,18 @@ Item {
   property var extraRows: []
   property var fileRows: []
   property var clipboardHistory: []
+  readonly property var webShortcut: !dmenuActive && category === "all" && activeMenu === "root" ? WebShortcuts.resolve(filterText) : null
   readonly property var topResult: { const rev=layoutSerial; return displayModel.count ? displayModel.get(0) : null }
-  readonly property bool exactApp: !!topResult && topResult.kind === "app" && filterText.trim().length > 0
+  readonly property bool exactApp: !!topResult && (topResult.kind === "app" || topResult.kind === "web") && filterText.trim().length > 0
       && (topResult.label.toLowerCase() === filterText.trim().toLowerCase()
           || topResult.appId.toLowerCase() === filterText.trim().toLowerCase())
   readonly property string completion: {
-    if(!topResult || topResult.kind!=="app" || !filterText || completionSuppressed || dmenuActive)return ""
+    if(!topResult || (topResult.kind!=="app" && topResult.kind!=="web") || !filterText || completionSuppressed || dmenuActive)return ""
     const name=topResult.label, q=filterText.toLowerCase()
     if(name.toLowerCase().startsWith(q))return name.slice(filterText.length)
     return ""
   }
-  readonly property bool inlineApp: !!topResult && topResult.kind==="app" && !!filterText && !completionSuppressed && !dmenuActive
+  readonly property bool inlineApp: !!topResult && (topResult.kind==="app" || topResult.kind==="web") && !!filterText && !completionSuppressed && !dmenuActive
       && quickReady && (exactApp || completion.length>0)
   readonly property bool quick: inlineApp && !forceResults
   readonly property bool resultsShown: dmenuActive ? mode !== "input" : forceResults || category!=="all" || (!!filterText && quickReady && !inlineApp)
@@ -1226,6 +1234,7 @@ Item {
   IpcHandler {
     target:"omarchylight"
     function inspect(): string { return JSON.stringify({opened:root.opened,category:root.category,route:root.activeMenu,query:root.filterText,
+      selectedResult:displayModel.count&&root.selectedIndex>=0&&root.selectedIndex<displayModel.count?{id:displayModel.get(root.selectedIndex).itemId,kind:displayModel.get(root.selectedIndex).kind,label:displayModel.get(root.selectedIndex).label}:null,
       appLibrary:!!root.appLibrary,apps:root.appLibrary?root.appLibrary.sortedEntries("").length:-1,loaded:root.providersLoaded,appRows:root.itemOrder.filter(id=>id.indexOf("apps.")===0).length,count:displayModel.count,results:root.resultsShown,quick:root.quick,inline:root.inlineApp,completion:root.completion,hover:root.hoveredCategory,geometry:card.geometry,split:card.split,presentation:root.presentation,scale:card.scale,scaleClock:root.scaleClock,scaleInterrupted:root.scaleInterrupted,scaleTransition:root.lastScaleTransition,
       resize:{time:root.resizeClock,from:root.resizeFrom,to:root.resizeTo,initialVelocity:root.resizeInitialVelocity,velocity:Motion.resizeVelocity(root.resizeClock,root.resizeFrom,root.resizeTo,root.resizeInitialVelocity)},
       bounds:{x:card.x,y:card.y,width:card.width,height:card.height},actionBounds:{x:card.x+openHint.x,y:card.y+openHint.y,width:openHint.width,height:openHint.height},screen:panel.screen?panel.screen.name:"",shader:glass.status}) }
@@ -1438,13 +1447,13 @@ Item {
             width:ListView.view.width;height:Motion.rowHeight;radius:18
             color:hasCursor?"#20f7fbff":"transparent"
             Image {
-              x:11.5;y:13.5;width:29;height:29;visible:row.kind==="app"
+              x:11.5;y:13.5;width:29;height:29;visible:row.kind==="app"||row.kind==="web"
               source:visible&&root.appLibrary?localLibrary.iconSource(row.appIcon):""
               sourceSize:Qt.size(width*Math.max(2,Screen.devicePixelRatio),height*Math.max(2,Screen.devicePixelRatio));fillMode:Image.PreserveAspectFit;smooth:true;mipmap:true
             }
             LightSymbol {x:13;y:14;width:26;height:28;visible:row.kind==="files"||row.kind==="clipboard";kind:row.kind;ink:"#c5c5cb"}
             Text {
-              x:12;y:13;width:28;height:30;visible:row.kind!=="app"&&row.kind!=="files"&&row.kind!=="clipboard"
+              x:12;y:13;width:28;height:30;visible:row.kind!=="app"&&row.kind!=="web"&&row.kind!=="files"&&row.kind!=="clipboard"
               text:row.icon;font.family:row.iconFont||"Symbols Nerd Font";font.pixelSize:23;color:"#c5c5cb"
               horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter;renderType:Text.NativeRendering
             }
@@ -1460,7 +1469,7 @@ Item {
               visible:row.hasCursor&&row.kind!=="menu"&&row.kind!=="link"
               Text {
                 width:Math.min(160,implicitWidth);height:18;verticalAlignment:Text.AlignVCenter;elide:Text.ElideRight
-                text:root.dmenuActive?"Select":row.kind==="app"?"Open "+row.label:row.kind==="clipboard"?"Paste":row.kind==="files"?"Open File":"Run"
+                text:root.dmenuActive?"Select":row.kind==="web"?"Open in Chrome":row.kind==="app"?"Open "+row.label:row.kind==="clipboard"?"Paste":row.kind==="files"?"Open File":"Run"
                 color:"#76767c";font.family:"Inter";font.pixelSize:10;font.weight:500
               }
               Rectangle {

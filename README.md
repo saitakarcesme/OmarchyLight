@@ -23,6 +23,7 @@ Media is captured from the running desktop over a neutral test background.
 |---|---|
 | Super+Space | Open / close |
 | Type | Search applications and Omarchy actions |
+| x / y / g, then Enter | Open X / YouTube / GitHub in Google Chrome (main search) |
 | Tab | Next category |
 | Ctrl+1 / 2 / 3 / 4 | Applications / files / actions / clipboard |
 | Up / Down | Select a result; Down expands a compact match while keeping its inline action |
@@ -42,6 +43,8 @@ Geometry and transitions were measured from a supplied 60 fps Spotlight recordin
 Opening, liquid separation, merging and result resizing use independent damped spring models fitted to reference frames. Separation first contracts the capsule, then releases four beads with different delays and overshoot. Initial opening waits briefly; clearing a query immediately starts separation while the result body contracts. Typing reverses the visual flow: the beads move inward before the capsule fills its final width. Interrupted gestures preserve position and velocity. The glass uses approximately 78.5% base opacity, calibrated against the compositor output. See [measurements and verification](docs/MOTION.md) and the [fidelity acceptance audit](docs/FIDELITY.md).
 
 **This is a measured visual recreation, not Apple's Spotlight implementation.** Font rasterization, compositor blur, display scaling and frame scheduling differ. It does not claim mathematically identical pixels or animation frames. File search is bounded filename search, not a full content index; Siri, Apple Intelligence, cloud search, calculator and native macOS quick actions are not implemented. Omarchy actions remain available through their existing providers.
+
+The main search reserves exact `x`, `y`, and `g` aliases for X, YouTube, and GitHub. Their full names also work. These shortcuts use the installed `google-chrome.desktop` entry and require Google Chrome; files, clipboard and native menu-input workflows keep their own search behavior.
 
 The file scan skips hidden/dependency directories, limits depth to five, and stops after about 1.2 seconds or 30,000 entries. No network search or telemetry is added.
 
