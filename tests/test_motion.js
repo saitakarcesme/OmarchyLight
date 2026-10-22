@@ -64,3 +64,14 @@ for(const opening of [true,false]) {
   }
 }
 console.log('PASS open/close reversal position and velocity');
+for(const [from,to] of [[472,56],[56,472],[136,360]]) {
+  for(const t of [.02,.08,.15,.3]) {
+    const position=m.resizedHeight(t,from,to,0),velocity=m.resizeVelocity(t,from,to,0);
+    assert.ok(Math.abs(m.resizedHeight(0,position,from,velocity)-position)<1e-9,'result resize position continuity');
+    assert.ok(Math.abs(m.resizeVelocity(0,position,from,velocity)-velocity)<1e-9,'result resize velocity continuity');
+    const numeric=(m.resizedHeight(t+.000001,from,to)-m.resizedHeight(t-.000001,from,to))/.000002;
+    assert.ok(Math.abs(numeric-velocity)<.0001,'height velocity agrees with rendered trajectory');
+    assert.equal(m.resizedHeight(.6,position,from,velocity),from);
+  }
+}
+console.log('PASS result height reversals preserve position and velocity');

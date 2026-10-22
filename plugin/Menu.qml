@@ -101,7 +101,7 @@ Item {
     if (opened) {
       screenName = Hyprland.focusedMonitor ? Hyprland.focusedMonitor.name : ""
       resizeReady = false
-      resizeAnimation.stop();resizeFrom=desiredHeight;resizeTo=desiredHeight;resizeClock=.6
+      resizeAnimation.stop();resizeFrom=desiredHeight;resizeTo=desiredHeight;resizeInitialVelocity=0;resizeClock=.6
       Qt.callLater(function(){root.resizeReady=true})
       closePresentation.stop();closeOpacity.stop()
       // Do not spend the first animation ticks while Wayland is mapping the
@@ -718,11 +718,14 @@ Item {
 
   function setFilter(nextFilter) {
     panel.freezeCardTop()
-    const fresh=!root.filterText && !!nextFilter
+    const hadQuery=!!root.filterText
+    const fresh=!hadQuery && !!nextFilter
     if(fresh) { forceResults=false;completionSuppressed=false;quickReady=false;exactDelay.restart() }
     if(!nextFilter) { forceResults=false;completionSuppressed=false;quickReady=false;exactDelay.stop() }
-    categoriesReady=false; hoveredCategory=-1
-    idleCategories.restart()
+    hoveredCategory=-1
+    if(nextFilter) { categoriesReady=false;idleCategories.restart() }
+    else if(hadQuery) { categoriesReady=true;idleCategories.stop() }
+    else if(!categoriesReady)idleCategories.restart()
     root.filterText = nextFilter
     if(category === "files") fileSearchDelay.restart()
     root.selectedIndex = 0
@@ -1126,11 +1129,13 @@ Item {
   property real resizeFrom: Motion.searchHeight
   property real resizeTo: Motion.searchHeight
   property real resizeClock: .6
-  readonly property real presentHeight: Motion.resizedHeight(resizeClock,resizeFrom,resizeTo)
+  property real resizeInitialVelocity: 0
+  readonly property real presentHeight: Motion.resizedHeight(resizeClock,resizeFrom,resizeTo,resizeInitialVelocity)
   function resizeSurface() {
     if(!opened || Math.abs(resizeTo-desiredHeight)<.01)return
     const current=presentHeight
-    resizeAnimation.stop();resizeFrom=current;resizeTo=desiredHeight;resizeClock=0
+    const velocity=resizeAnimation.running?Motion.resizeVelocity(resizeClock,resizeFrom,resizeTo,resizeInitialVelocity):0
+    resizeAnimation.stop();resizeFrom=current;resizeTo=desiredHeight;resizeInitialVelocity=velocity;resizeClock=0
     if(resizeReady && opened)resizeAnimation.start();else resizeClock=.6
   }
   NumberAnimation {id:resizeAnimation;target:root;property:"resizeClock";from:0;to:.6;duration:Motion.resizeDuration;easing.type:Easing.Linear}
@@ -1222,6 +1227,7 @@ Item {
     target:"omarchylight"
     function inspect(): string { return JSON.stringify({opened:root.opened,category:root.category,route:root.activeMenu,query:root.filterText,
       appLibrary:!!root.appLibrary,apps:root.appLibrary?root.appLibrary.sortedEntries("").length:-1,loaded:root.providersLoaded,appRows:root.itemOrder.filter(id=>id.indexOf("apps.")===0).length,count:displayModel.count,results:root.resultsShown,quick:root.quick,inline:root.inlineApp,completion:root.completion,hover:root.hoveredCategory,geometry:card.geometry,split:card.split,presentation:root.presentation,scale:card.scale,scaleClock:root.scaleClock,scaleInterrupted:root.scaleInterrupted,scaleTransition:root.lastScaleTransition,
+      resize:{time:root.resizeClock,from:root.resizeFrom,to:root.resizeTo,initialVelocity:root.resizeInitialVelocity,velocity:Motion.resizeVelocity(root.resizeClock,root.resizeFrom,root.resizeTo,root.resizeInitialVelocity)},
       bounds:{x:card.x,y:card.y,width:card.width,height:card.height},actionBounds:{x:card.x+openHint.x,y:card.y+openHint.y,width:openHint.width,height:openHint.height},screen:panel.screen?panel.screen.name:"",shader:glass.status}) }
     // Deterministic local visual verification: freeze the liquid transition at a timestamp.
     function sampleMerge(seconds:real):void {

@@ -62,8 +62,14 @@ function geometry(t,separate,from,width,velocity) {
     result.push(separate?5.37587231+(25.4679428-5.37587231)*(1-spring(t-.227132686,9.35359115,.85)):14.00547727);
     return result;
 }
-function resizedHeight(t,from,to) {
-    return t>=.6?to:from+(to-from)*spring(t,22.06974867,.83378442);
+function resizedHeight(t,from,to,velocity) {
+    return t>=.6?to:retarget(t,from,to,velocity||0,22.06974867,.83378442);
+}
+function resizeVelocity(t,from,to,velocity) {
+    if(t>=.6)return 0;
+    var w=22.06974867,z=.83378442,wd=w*Math.sqrt(1-z*z),d=from-to;
+    var a=velocity||0,b=(a+z*w*d)/wd;
+    return Math.exp(-z*w*t)*((-z*w*d+b*wd)*Math.cos(wd*t)+(-z*w*b-d*wd)*Math.sin(wd*t));
 }
 
 function openScale(seconds) {
