@@ -76,3 +76,63 @@ function velocityAt(t,separate,from,width,velocity) {
     var after=geometry(t+.001,separate,from,width,velocity), dt=t<.001?.001+t:.002;
     return after.map(function(value,index){return (value-before[index])/dt;});
 }
+
+// Sampled contrast from the four reference glyphs, independently of the surface
+// springs. Monotone cubic interpolation avoids a speed step at each video sample.
+var symbolSamples = [[0,0],[.18,0],[.2,.035],[.233333,.13],[.266667,.346],
+    [.3,.49],[.333333,.60],[.366667,.71],[.4,.785],[.433333,.865],
+    [.466667,.94],[.5,.98],[.533333,.995],[.6,1],[1.1,1]];
+function symbolReveal(t) {
+    if(t<=0)return 0;
+    if(t>=.6)return 1;
+    var points=symbolSamples, i=0;
+    while(i<points.length-2 && t>points[i+1][0])i++;
+    function slope(j) {
+        if(j===0 || j===points.length-1)return 0;
+        var a=(points[j][1]-points[j-1][1])/(points[j][0]-points[j-1][0]);
+        var b=(points[j+1][1]-points[j][1])/(points[j+1][0]-points[j][0]);
+        return a*b<=0?0:2*a*b/(a+b);
+    }
+    var dt=points[i+1][0]-points[i][0],u=(t-points[i][0])/dt;
+    return (2*u*u*u-3*u*u+1)*points[i][1]+(u*u*u-2*u*u+u)*dt*slope(i)
+        +(-2*u*u*u+3*u*u)*points[i+1][1]+(u*u*u-u*u)*dt*slope(i+1);
+}
+function symbolSigma(t) {
+    // Logical-pixel sigma, fitted against the final sharp glyph, not Qt's blur slider.
+    var sigma=Math.min(12,6.40103849*Math.exp(-10.8204031*(t-.266667)));
+    return t>=.75?0:sigma*Math.min(1,Math.max(0,(.75-t)/.15));
+}
+function symbolOpacity(t,separate,from) {
+    return separate?from+(1-from)*symbolReveal(t):from*Math.max(0,1-t/.08);
+}
+function symbolBlur(t,separate,from) {
+    return separate?from*symbolSigma(t)/12:from;
+}
+
+function visibilityBase(t,opening) {
+    return opening?openScale(t):1+.08*Math.pow(Math.max(0,Math.min(1,t/.1)),1.25);
+}
+function visibilityScale(t,opening,from,velocity,interrupted) {
+    var base=visibilityBase(t,opening);
+    if(!interrupted)return base;
+    // A short Hermite correction preserves both position and velocity when
+    // Super+Space reverses an animation. It vanishes with zero velocity, leaving
+    // the measured canonical curve unchanged for the rest of the transition.
+    var duration=opening?.15:.1,u=Math.min(1,Math.max(0,t/duration));
+    var baseVelocity=visibilityBaseVelocity(0,opening);
+    var delta=from-visibilityBase(0,opening),dv=velocity-baseVelocity;
+    return base+delta*(2*u*u*u-3*u*u+1)+dv*duration*(u*u*u-2*u*u+u);
+}
+function visibilityBaseVelocity(t,opening) {
+    if(!opening)return t<=0 || t>=.1?0:Math.pow(t/.1,.25);
+    if(t>=.5)return 0;
+    var w=22.04001509,z=.6791864,wd=w*Math.sqrt(1-z*z),phase=t+.02177793;
+    return -.12241138*w*w/wd*Math.exp(-z*w*phase)*Math.sin(wd*phase);
+}
+function visibilityVelocity(t,opening,from,velocity,interrupted) {
+    var base=visibilityBaseVelocity(t,opening);
+    if(!interrupted)return base;
+    var duration=opening?.15:.1,u=Math.min(1,Math.max(0,t/duration));
+    var delta=from-visibilityBase(0,opening),dv=velocity-visibilityBaseVelocity(0,opening);
+    return base+delta*(6*u*u-6*u)/duration+dv*(3*u*u-4*u+1);
+}

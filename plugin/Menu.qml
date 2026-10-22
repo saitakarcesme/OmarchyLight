@@ -4,7 +4,6 @@ import Quickshell.Wayland
 import QtQuick
 import QtQuick.Window
 import QtQuick.Controls
-import QtQuick.Effects
 import Quickshell.Hyprland
 import "Motion.js" as Motion
 import "ClipboardHistory.js" as ClipboardHistory
@@ -88,16 +87,29 @@ Item {
   DesktopLibrary { id: localLibrary }
   property bool deleteConfirmOpen: false
   property var deleteTarget: null
+  property bool openingPending: false
+  function beginOpening() {
+    if(!opened)return
+    openingPending=false
+    beginScale(true,presentation>.001)
+    openPresentation.from=presentation;openPresentation.start()
+    openOpacity.from=opacityProgress;openOpacity.start()
+    idleCategories.restart()
+  }
   onOpenedChanged: {
     if (opened) {
       screenName = Hyprland.focusedMonitor ? Hyprland.focusedMonitor.name : ""
       resizeReady = false
       resizeAnimation.stop();resizeFrom=desiredHeight;resizeTo=desiredHeight;resizeClock=.6
       Qt.callLater(function(){root.resizeReady=true})
-      closePresentation.stop();openPresentation.from=presentation;openPresentation.start()
-      closeOpacity.stop();openOpacity.from=opacityProgress;openOpacity.start()
-      idleCategories.restart()
+      closePresentation.stop();closeOpacity.stop()
+      // Do not spend the first animation ticks while Wayland is mapping the
+      // surface. Begin after its transparent first frame has been submitted.
+      if(presentation<=.001)openingPending=true
+      else beginOpening()
     } else {
+      openingPending=false
+      beginScale(false,presentation>.001)
       if(mode === "menu" && category === "all") {lastQuery=filterText;lastResults=forceResults;lastCompletionSuppressed=completionSuppressed}
       openPresentation.stop();closePresentation.from=presentation;closePresentation.start()
       openOpacity.stop();closeOpacity.from=opacityProgress;closeOpacity.start()
@@ -1082,6 +1094,25 @@ Item {
   property bool completionSuppressed: false
   property int hoveredCategory: -1
   property bool forceResults: false
+  property var lastScaleTransition: ({})
+  property real scaleClock: .1
+  property bool scaleOpening: false
+  property real scaleFrom: 1
+  property real scaleVelocity: 0
+  property bool scaleInterrupted: false
+  readonly property real visualScale: Motion.visibilityScale(scaleClock,scaleOpening,scaleFrom,scaleVelocity,scaleInterrupted)
+  function beginScale(opening,wasVisible) {
+    const position=visualScale
+    const velocity=scaleAnimation.running?Motion.visibilityVelocity(scaleClock,scaleOpening,scaleFrom,scaleVelocity,scaleInterrupted):0
+    scaleAnimation.stop()
+    scaleOpening=opening;scaleFrom=position;scaleVelocity=velocity
+    scaleInterrupted=wasVisible && (Math.abs(position-Motion.visibilityBase(0,opening))>.00001 || Math.abs(velocity)>.00001)
+    scaleClock=0;scaleAnimation.to=(opening?Motion.openDuration:Motion.closeDuration)/1000
+    scaleAnimation.duration=opening?Motion.openDuration:Motion.closeDuration
+    lastScaleTransition={opening:opening,from:position,start:visualScale,velocity:velocity,interrupted:scaleInterrupted}
+    scaleAnimation.start()
+  }
+  NumberAnimation {id:scaleAnimation;target:root;property:"scaleClock";from:0;easing.type:Easing.Linear}
   property real presentation: 0
   property real opacityProgress: 0
   property string lastQuery: ""
@@ -1189,16 +1220,16 @@ Item {
   IpcHandler {
     target:"omarchylight"
     function inspect(): string { return JSON.stringify({opened:root.opened,category:root.category,route:root.activeMenu,query:root.filterText,
-      appLibrary:!!root.appLibrary,apps:root.appLibrary?root.appLibrary.sortedEntries("").length:-1,loaded:root.providersLoaded,appRows:root.itemOrder.filter(id=>id.indexOf("apps.")===0).length,count:displayModel.count,results:root.resultsShown,quick:root.quick,inline:root.inlineApp,completion:root.completion,hover:root.hoveredCategory,geometry:card.geometry,split:card.split,presentation:root.presentation,scale:card.scale,
+      appLibrary:!!root.appLibrary,apps:root.appLibrary?root.appLibrary.sortedEntries("").length:-1,loaded:root.providersLoaded,appRows:root.itemOrder.filter(id=>id.indexOf("apps.")===0).length,count:displayModel.count,results:root.resultsShown,quick:root.quick,inline:root.inlineApp,completion:root.completion,hover:root.hoveredCategory,geometry:card.geometry,split:card.split,presentation:root.presentation,scale:card.scale,scaleClock:root.scaleClock,scaleInterrupted:root.scaleInterrupted,scaleTransition:root.lastScaleTransition,
       bounds:{x:card.x,y:card.y,width:card.width,height:card.height},actionBounds:{x:card.x+openHint.x,y:card.y+openHint.y,width:openHint.width,height:openHint.height},screen:panel.screen?panel.screen.name:"",shader:glass.status}) }
     // Deterministic local visual verification: freeze the liquid transition at a timestamp.
     function sampleMerge(seconds:real):void {
       root.categoriesReady=true;morphAnimation.stop();card.morphVelocity=null;card.morphFrom=Motion.separatedGeometry(card.width)
-      card.separating=false;card.morphClock=Math.max(0,Math.min(1.1,seconds))
+      card.symbolFromOpacity=1;card.symbolFromSigma=0;card.separating=false;card.morphClock=Math.max(0,Math.min(1.1,seconds))
     }
     function sampleTransition(seconds:real):void {
       root.categoriesReady=true;morphAnimation.stop();card.morphVelocity=null;card.morphFrom=Motion.closedGeometry(card.width)
-      card.separating=true;card.morphClock=Math.max(0,Math.min(1.1,seconds))
+      card.symbolFromOpacity=0;card.symbolFromSigma=12;card.separating=true;card.morphClock=Math.max(0,Math.min(1.1,seconds))
     }
     function search(query:string):void { root.setFilter(query) }
     function category(name:string):void { root.chooseCategory(name) }
@@ -1219,6 +1250,12 @@ Item {
     readonly property real logicalHeight:screen?screen.height:1080
     readonly property int effectiveCardTop:Math.max(28,Math.min(logicalHeight-100,Math.round(logicalHeight*Motion.topFraction+root.dragY)))
     function freezeCardTop() {}
+    Connections {
+      target: panel.contentItem.Window.window
+      function onFrameSwapped() {
+        if(root.openingPending && root.opened)root.beginOpening()
+      }
+    }
     MouseArea { anchors.fill:parent;onClicked:root.cancel() }
     Item {
       id:card
@@ -1226,21 +1263,26 @@ Item {
       y:panel.effectiveCardTop
       width:root.lightWidth;height:root.presentHeight
       opacity:root.opacityProgress
-      scale:root.opened ? Motion.openScale(root.presentation*Motion.openDuration/1000) : 1+0.08*Math.pow(1-root.presentation,1.25)
+      scale:root.visualScale
       transformOrigin:Item.Center
       property real morphClock: 1.1
       property bool separating: false
       property var morphFrom: Motion.closedGeometry(width)
       property var morphVelocity: null
+      property real symbolFromOpacity: 0
+      property real symbolFromSigma: 12
+      readonly property real symbolOpacity: Motion.symbolOpacity(morphClock,separating,symbolFromOpacity)
+      readonly property real symbolSigma: Motion.symbolBlur(morphClock,separating,symbolFromSigma)
       readonly property var geometry: Motion.geometry(morphClock,separating,morphFrom,width,morphVelocity)
       readonly property real split: Math.max(0,Math.min(1,(width-geometry[0])/256))
       function morphAnimationReset() {
-        morphAnimation.stop();morphVelocity=null;separating=false;morphFrom=Motion.closedGeometry(width);morphClock=1.1
+        morphAnimation.stop();morphVelocity=null;symbolFromOpacity=0;symbolFromSigma=12;separating=false;morphFrom=Motion.closedGeometry(width);morphClock=1.1
       }
       function morph(separate) {
         const current=geometry.slice()
+        const previousOpacity=symbolOpacity, previousSigma=symbolSigma
         const velocity=morphAnimation.running?Motion.velocityAt(morphClock,separating,morphFrom,width,morphVelocity):null
-        morphAnimation.stop();morphVelocity=velocity;morphFrom=current;separating=separate;morphClock=0;morphAnimation.start()
+        morphAnimation.stop();morphVelocity=velocity;morphFrom=current;symbolFromOpacity=previousOpacity;symbolFromSigma=separate?(previousOpacity<.001?12:previousSigma):previousSigma;separating=separate;morphClock=0;morphAnimation.start()
       }
       NumberAnimation { id:morphAnimation;target:card;property:"morphClock";from:0;to:1.1;duration:1100;easing.type:Easing.Linear }
       Connections { target:root;function onCategoriesShownChanged(){card.morph(root.categoriesShown)} }
@@ -1339,11 +1381,10 @@ Item {
           required property string modelData
           x:card.geometry[index+1]-28;y:0;width:56;height:56
           visible:card.geometry[index+5]>1 && card.split>.05
-          readonly property real reveal: card.separating ? Math.max(0,Math.min(1,(card.morphClock-.25-index*.012)/.23)) : Math.max(0,1-card.morphClock/.08)
+          readonly property real reveal: card.symbolOpacity
           opacity:reveal
           Rectangle { anchors.fill:parent;radius:28;color:catMouse.containsMouse?"#0affffff":"transparent" }
-          LightSymbol {id:catSymbol;anchors.centerIn:parent;width:25;height:27;kind:modelData;visible:false;ink:catMouse.containsMouse?"#b7b7bd":modelData==="apps"?"#96969a":"#8b8b90"}
-          MultiEffect {source:catSymbol;anchors.fill:catSymbol;blurEnabled:true;blurMax:16;blur:Math.pow(1-parent.reveal,.55)}
+          SoftSymbol {anchors.centerIn:parent;kind:modelData;sigma:card.symbolSigma;ink:catMouse.containsMouse?"#b7b7bd":modelData==="apps"?"#96969a":"#8b8b90"}
           MouseArea {
             id:catMouse;anchors.fill:parent;hoverEnabled:true
             onEntered:root.hoveredCategory=index

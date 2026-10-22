@@ -32,3 +32,35 @@ for (const separate of [false,true]) {
   }
 }
 console.log('PASS measured geometry, settling, and interrupted gesture continuity');
+// Reference glyph contrast and Gaussian width are independent of bead geometry.
+for (const [t,opacity,sigma] of [[.3,.49,4.65],[.4,.785,1.46],[.5,.98,.525]]) {
+  assert.ok(Math.abs(m.symbolReveal(t)-opacity)<.025,`glyph contrast at ${t}`);
+  assert.ok(Math.abs(m.symbolSigma(t)-sigma)<.25,`glyph blur at ${t}`);
+}
+let previous=-1;
+for(let i=0;i<=1100;i++) {
+  const t=i/1000,value=m.symbolReveal(t);
+  assert.ok(value>=previous-1e-9 && value>=0 && value<=1,'contrast must not flash or overshoot');
+  assert.ok(m.symbolSigma(t)>=0 && m.symbolSigma(t)<=12);
+  previous=value;
+}
+for(const from of [0,.13,.49,.78,1]) {
+  assert.equal(m.symbolOpacity(0,true,from),from);
+  assert.equal(m.symbolOpacity(0,false,from),from);
+  assert.equal(m.symbolOpacity(.08,false,from),0);
+}
+assert.equal(m.symbolReveal(.6),1);
+assert.equal(m.symbolSigma(.75),0);
+console.log('PASS measured glyph reveal and interrupted opacity continuity');
+for(const opening of [true,false]) {
+  for(const t of (opening?[.035,.08,.15,.3]:[.015,.04,.07])) {
+    const position=m.visibilityScale(t,opening,1,0,false);
+    const velocity=m.visibilityVelocity(t,opening,1,0,false);
+    assert.equal(m.visibilityScale(0,!opening,position,velocity,true),position,'toggle scale must not jump');
+    const v=m.visibilityVelocity(0,!opening,position,velocity,true);
+    assert.ok(Math.abs(v-velocity)<.015,'toggle velocity must remain continuous');
+    const end=opening?.1:.5;
+    assert.equal(m.visibilityScale(end,!opening,position,velocity,true),m.visibilityBase(end,!opening));
+  }
+}
+console.log('PASS open/close reversal position and velocity');
