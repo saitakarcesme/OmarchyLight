@@ -1,16 +1,28 @@
 import QtQuick
 import QtQuick.Window
 Image {
+    id: symbol
     property string kind: "search"
     property color ink: kind==="apps"?"#96969a":"#8b8b90"
     sourceSize: Qt.size(Math.max(1,Math.round(width*Math.max(2,Screen.devicePixelRatio))), Math.max(1,Math.round(height*Math.max(2,Screen.devicePixelRatio))))
     smooth: true
     fillMode: Image.PreserveAspectFit
-    source: "data:image/svg+xml;utf8," + encodeURIComponent(mark())
+    source: kind === "apps" ? "" : "data:image/svg+xml;utf8," + encodeURIComponent(mark())
+    // Use the installed Omarchy logo, just like the desktop's menu button.
+    Text {
+        anchors.fill: parent
+        visible: symbol.kind === "apps"
+        text: "\ue900"
+        font.family: "omarchy"
+        font.pixelSize: Math.min(width, height)
+        color: symbol.ink
+        horizontalAlignment: Text.AlignHCenter
+        verticalAlignment: Text.AlignVCenter
+        renderType: Text.QtRendering
+    }
     function mark() {
         const paths={
             search:'<circle cx="9.85" cy="9.75" r="8.35" stroke-width="1.9"/><path d="m15.76 15.66 6.28 6.54" stroke-width="2.66"/>',
-            apps:'<g stroke-width="2.7"><path d="m10 5 1.5 2.6M14 5 6.5 18M4.8 20.9l-.5.9M3.4 17h11M14.4 11.4l6 10.4M18.4 17H21"/></g>',
             files:'<path d="M1.5 7V5.5A1.5 1.5 0 0 1 3 4h5l3 2h10a1.5 1.5 0 0 1 1.5 1.5v12A1.5 1.5 0 0 1 21 21H3a1.5 1.5 0 0 1-1.5-1.5Z"/><path d="M4 9h16"/>',
             actions:'<path d="m12 2 9 6a2 2 0 0 1 0 3l-9 6-9-6a2 2 0 0 1 0-3Zm-8 12-1 1a2 2 0 0 0 0 3l9 6 9-6a2 2 0 0 0 0-3l-1-1"/>',
             clipboard:'<path d="M10 3V1h7l5 5v13h-6M17 1v6h5M3 7h7l6 6v11H3Zm7 0v6h6"/>',
